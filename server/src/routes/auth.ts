@@ -27,7 +27,11 @@ router.post("/signup", async (req, res) => {
     },
   });
 
-  res.json(user);
+  res.json({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+  });
 });
 
 // LOGIN
@@ -55,13 +59,13 @@ router.post("/login", async (req, res) => {
   );
 
   res.json({
-  token,
-  user: {
-    id: user.id,
-    name: user.name,
-    email: user.email
-  }
-});
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    },
+  });
 });
 
 export default router;

@@ -9,6 +9,9 @@ const auth_1 = require("../middleware/auth");
 const router = express_1.default.Router();
 // CREATE DAILY ENTRY
 router.post("/", auth_1.authMiddleware, async (req, res) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+    }
     const { sabaq, sabaqPara, manzil, notes } = req.body;
     const user = await prisma_1.prisma.user.findUnique({
         where: { id: req.userId },
@@ -60,6 +63,9 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
 });
 // GET MY ENTRIES
 router.get("/", auth_1.authMiddleware, async (req, res) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+    }
     const entries = await prisma_1.prisma.dailyEntry.findMany({
         where: { userId: req.userId },
         orderBy: { date: "desc" },

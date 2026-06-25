@@ -1,11 +1,15 @@
 import express from "express";
 import { prisma } from "../prisma";
-import { authMiddleware } from "../middleware/auth";
+import { AuthRequest, authMiddleware } from "../middleware/auth";
 
 const router = express.Router();
 
 // CREATE DAILY ENTRY
-router.post("/", authMiddleware, async (req: any, res) => {
+router.post("/", authMiddleware, async (req: AuthRequest, res) => {
+  if (!req.userId) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+
   const { sabaq, sabaqPara, manzil, notes } = req.body;
 
   const user = await prisma.user.findUnique({
@@ -67,7 +71,11 @@ router.post("/", authMiddleware, async (req: any, res) => {
 });
 
 // GET MY ENTRIES
-router.get("/", authMiddleware, async (req: any, res) => {
+router.get("/", authMiddleware, async (req: AuthRequest, res) => {
+  if (!req.userId) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+
   const entries = await prisma.dailyEntry.findMany({
     where: { userId: req.userId },
     orderBy: { date: "desc" },

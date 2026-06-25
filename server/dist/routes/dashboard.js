@@ -9,13 +9,17 @@ const auth_1 = require("../middleware/auth");
 const router = express_1.default.Router();
 // GET DASHBOARD DATA
 router.get("/", auth_1.authMiddleware, async (req, res) => {
+    if (!req.userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+    }
     const user = await prisma_1.prisma.user.findUnique({
         where: { id: req.userId },
-        include: {
-            entries: {
-                orderBy: { date: "desc" },
-                take: 10,
-            },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            streak: true,
+            longestStreak: true,
         },
     });
     if (!user) {
@@ -23,17 +27,32 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
     }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayEntry = user.entries.find((entry) => {
+    const recentEntries = await prisma_1.prisma.dailyEntry.findMany({
+        where: { userId: req.userId },
+        orderBy: { date: "desc" },
+        take: 7,
+    });
+    const todayEntry = recentEntries.find((entry) => {
         const entryDate = new Date(entry.date);
         entryDate.setHours(0, 0, 0, 0);
         return entryDate.getTime() === today.getTime();
     });
     res.json({
         studentName: user.name,
+        user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+        },
+        progress: {
+            juz: 0,
+            pages: 0,
+            surahs: 0,
+        },
         streak: user.streak,
         longestStreak: user.longestStreak,
         todayEntry: todayEntry || null,
-        recentEntries: user.entries,
+        recentEntries,
     });
 });
 exports.default = router;

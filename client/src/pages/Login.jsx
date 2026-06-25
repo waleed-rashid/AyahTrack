@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/api";
+import { saveSession } from "../auth/auth";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = location.state?.from || "/dashboard";
 
   const handleLogin = async () => {
     setIsLoading(true);
@@ -17,10 +20,9 @@ export default function Login() {
         password,
       });
 
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("user", JSON.stringify(res.data.user));
+      saveSession(res.data);
 
-      navigate("/dashboard");
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       alert("Login failed");
     } finally {

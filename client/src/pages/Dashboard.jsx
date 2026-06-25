@@ -126,8 +126,7 @@ export default function Dashboard() {
 
   if (!data) return <p style={styles.loading}>Loading...</p>;
 
-  const savedUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const studentName = data.studentName || data.user?.name || savedUser.name || "Student";
+  const studentName = data.studentName || data.user?.name || "Student";
   const progress = data.progress || {};
   const recentEntries = data.recentEntries.filter(isVisibleRecentEntry).slice(0, 7);
 

@@ -1,18 +1,23 @@
 import express from "express";
 import { prisma } from "../prisma";
-import { authMiddleware } from "../middleware/auth";
+import { AuthRequest, authMiddleware } from "../middleware/auth";
 
 const router = express.Router();
 
 // GET DASHBOARD DATA
-router.get("/", authMiddleware, async (req: any, res) => {
+router.get("/", authMiddleware, async (req: AuthRequest, res) => {
+  if (!req.userId) {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: req.userId },
-    include: {
-      entries: {
-        orderBy: { date: "desc" },
-        take: 7,
-      },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      streak: true,
+      longestStreak: true,
     },
   });
 
@@ -23,7 +28,13 @@ router.get("/", authMiddleware, async (req: any, res) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const todayEntry = user.entries.find((entry) => {
+  const recentEntries = await prisma.dailyEntry.findMany({
+    where: { userId: req.userId },
+    orderBy: { date: "desc" },
+    take: 7,
+  });
+
+  const todayEntry = recentEntries.find((entry) => {
     const entryDate = new Date(entry.date);
     entryDate.setHours(0, 0, 0, 0);
     return entryDate.getTime() === today.getTime();
@@ -44,7 +55,7 @@ router.get("/", authMiddleware, async (req: any, res) => {
     streak: user.streak,
     longestStreak: user.longestStreak,
     todayEntry: todayEntry || null,
-    recentEntries: user.entries,
+    recentEntries,
   });
 });
 

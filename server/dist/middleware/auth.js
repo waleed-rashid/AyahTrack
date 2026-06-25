@@ -10,9 +10,15 @@ const authMiddleware = (req, res, next) => {
     if (!header) {
         return res.status(401).json({ message: "No token provided" });
     }
-    const token = header.split(" ")[1];
+    const [scheme, token] = header.split(" ");
+    if (scheme !== "Bearer" || !token) {
+        return res.status(401).json({ message: "Invalid authorization header" });
+    }
     try {
         const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET || "secret");
+        if (typeof decoded.userId !== "number") {
+            return res.status(401).json({ message: "Invalid token payload" });
+        }
         req.userId = decoded.userId;
         next();
     }

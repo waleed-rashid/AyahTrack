@@ -25,7 +25,11 @@ router.post("/signup", async (req, res) => {
             passwordHash,
         },
     });
-    res.json(user);
+    res.json({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+    });
 });
 // LOGIN
 router.post("/login", async (req, res) => {
@@ -46,8 +50,8 @@ router.post("/login", async (req, res) => {
         user: {
             id: user.id,
             name: user.name,
-            email: user.email
-        }
+            email: user.email,
+        },
     });
 });
 exports.default = router;
