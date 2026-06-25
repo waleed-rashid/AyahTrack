@@ -31,6 +31,11 @@ router.get("/", authMiddleware, async (req: any, res) => {
 
   res.json({
     studentName: user.name,
+    progress: {
+      juz: 0,
+      pages: 0,
+      surahs: 0,
+    },
     streak: user.streak,
     longestStreak: user.longestStreak,
     todayEntry: todayEntry || null,
