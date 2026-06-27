@@ -20,6 +20,11 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
             email: true,
             streak: true,
             longestStreak: true,
+            memorizedJuzCount: true,
+            memorizedJuzList: true,
+            currentJuz: true,
+            currentSurah: true,
+            currentAyah: true,
         },
     });
     if (!user) {
@@ -45,7 +50,11 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
             email: user.email,
         },
         progress: {
-            juz: 0,
+            juz: user.memorizedJuzCount,
+            memorizedJuz: JSON.parse(user.memorizedJuzList),
+            currentJuz: user.currentJuz,
+            currentSurah: user.currentSurah,
+            currentAyah: user.currentAyah,
             pages: 0,
             surahs: 0,
         },

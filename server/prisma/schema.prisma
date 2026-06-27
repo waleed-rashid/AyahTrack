@@ -16,6 +16,12 @@ model User {
   streak        Int      @default(0)
   longestStreak Int      @default(0)
 
+  memorizedJuzCount Int    @default(0)
+  memorizedJuzList  String @default("[]")
+  currentJuz        Int?
+  currentSurah      Int?
+  currentAyah       Int?
+
   lastEntryDate DateTime?
 
   entries       DailyEntry[]

@@ -1,0 +1,6 @@
+ALTER TABLE "User"
+ADD COLUMN "memorizedJuzCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "memorizedJuzList" TEXT NOT NULL DEFAULT '[]',
+ADD COLUMN "currentJuz" INTEGER,
+ADD COLUMN "currentSurah" INTEGER,
+ADD COLUMN "currentAyah" INTEGER;

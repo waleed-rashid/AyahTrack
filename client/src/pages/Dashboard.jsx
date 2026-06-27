@@ -129,6 +129,13 @@ export default function Dashboard() {
   const studentName = data.studentName || data.user?.name || "Student";
   const progress = data.progress || {};
   const recentEntries = data.recentEntries.filter(isVisibleRecentEntry).slice(0, 7);
+  const currentSurah = progress.currentSurah
+    ? surahs.find((surah) => surah.number === Number(progress.currentSurah))
+    : null;
+  const currentProgressText =
+    currentSurah && progress.currentAyah
+      ? `${currentSurah.name} ${progress.currentAyah}`
+      : "Not set";
 
   return (
     <div style={styles.page}>
@@ -155,6 +162,11 @@ export default function Dashboard() {
                 <div style={styles.progressItem}>
                   <span style={styles.progressLabel}>Surahs Memorized</span>
                   <strong style={styles.progressValue}>{progress.surahs || 0}</strong>
+                </div>
+
+                <div style={styles.progressItem}>
+                  <span style={styles.progressLabel}>Current Point</span>
+                  <strong style={styles.progressTextValue}>{currentProgressText}</strong>
                 </div>
               </div>
             </section>
@@ -447,6 +459,16 @@ const styles = {
     padding: "4px 9px",
     textAlign: "center",
     fontSize: 18,
+    lineHeight: 1.2,
+  },
+  progressTextValue: {
+    color: "#1f7a55",
+    background: "#edf7f1",
+    border: "1px solid #d8ecdf",
+    borderRadius: 6,
+    padding: "4px 9px",
+    textAlign: "right",
+    fontSize: 13,
     lineHeight: 1.2,
   },
   coverageList: {

@@ -7,7 +7,16 @@ const router = express.Router();
 
 // SIGNUP
 router.post("/signup", async (req, res) => {
-  const { name, email, password } = req.body;
+  const {
+    name,
+    email,
+    password,
+    memorizedJuzCount = 0,
+    memorizedJuzList = [],
+    currentJuz,
+    currentSurah,
+    currentAyah,
+  } = req.body;
 
   const existing = await prisma.user.findUnique({
     where: { email },
@@ -24,13 +33,27 @@ router.post("/signup", async (req, res) => {
       name,
       email,
       passwordHash,
+      memorizedJuzCount,
+      memorizedJuzList: JSON.stringify(memorizedJuzList),
+      currentJuz,
+      currentSurah,
+      currentAyah,
     },
   });
 
+  const token = jwt.sign(
+    { userId: user.id },
+    process.env.JWT_SECRET || "secret",
+    { expiresIn: "7d" }
+  );
+
   res.json({
-    id: user.id,
-    name: user.name,
-    email: user.email,
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    },
   });
 });
 
