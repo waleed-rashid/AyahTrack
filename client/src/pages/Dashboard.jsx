@@ -248,6 +248,7 @@ export default function Dashboard() {
                       <label style={styles.label}>
                         Starting Surah
                         <select
+                          className="dashboard-select"
                           value={entry.startSurahNumber}
                           onChange={(event) =>
                             updateCoverage(type.key, "startSurahNumber", event.target.value)
@@ -265,6 +266,7 @@ export default function Dashboard() {
                       <label style={styles.label}>
                         Starting Ayah
                         <select
+                          className="dashboard-select"
                           value={entry.startAyah}
                           onChange={(event) =>
                             updateCoverage(type.key, "startAyah", event.target.value)
@@ -282,6 +284,7 @@ export default function Dashboard() {
                       <label style={styles.label}>
                         Ending Surah
                         <select
+                          className="dashboard-select"
                           value={entry.endSurahNumber}
                           onChange={(event) =>
                             updateCoverage(type.key, "endSurahNumber", event.target.value)
@@ -299,6 +302,7 @@ export default function Dashboard() {
                       <label style={styles.label}>
                         Ending Ayah
                         <select
+                          className="dashboard-select"
                           value={entry.endAyah}
                           onChange={(event) =>
                             updateCoverage(type.key, "endAyah", event.target.value)

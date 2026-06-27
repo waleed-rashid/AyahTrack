@@ -34,6 +34,52 @@ h3 {
   min-height: 100vh;
 }
 
+.dashboard-select {
+  appearance: none;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #1f7a55 50%),
+    linear-gradient(135deg, #1f7a55 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 18px,
+    calc(100% - 12px) 18px;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px !important;
+}
+
+.dashboard-select:hover {
+  border-color: #1f7a55 !important;
+  background-color: #f4fbf7 !important;
+  box-shadow: 0 0 0 3px rgba(31, 122, 85, 0.1);
+}
+
+.dashboard-select:focus {
+  border-color: #1f7a55 !important;
+  box-shadow: 0 0 0 3px rgba(31, 122, 85, 0.16);
+}
+
+.dashboard-select option {
+  color: #17201b;
+  background: #fbfdfb;
+}
+
+.dashboard-select option:checked {
+  color: white;
+  background: #1f7a55;
+}
+
+.dashboard-select option:hover {
+  color: white;
+  background: #1f7a55;
+}
+
 @keyframes dashboard-dissolve-in {
   from {
     opacity: 0;
