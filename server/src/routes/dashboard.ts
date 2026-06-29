@@ -119,6 +119,11 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     }),
     { sabaq: "", sabaqPara: "", manzil: "" }
   );
+  const achievementStats = {
+    totalEntries: allEntries.length,
+    revisionSessions: allEntries.filter((entry) => entry.manzilSaved && entry.manzil.trim())
+      .length,
+  };
 
   res.json({
     studentName: user.name,
@@ -141,6 +146,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     longestStreak: streakStats.longestStreak,
     longestStreakRange: streakStats.longestStreakRange,
     weeklyActivity,
+    achievementStats,
     sabaqEntries: allEntries
       .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
       .map((entry) => ({ sabaq: entry.sabaq })),

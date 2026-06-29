@@ -28,9 +28,13 @@ export default function Dashboard() {
   const [activeCoverageKeys, setActiveCoverageKeys] = useState([]);
   const [notes, setNotes] = useState("");
   const [pendingUndo, setPendingUndo] = useState(null);
+  const [deleteNotice, setDeleteNotice] = useState("");
+  const [darkMode, setDarkMode] = useState(false);
+  const [showBadges, setShowBadges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
   const undoTimeoutRef = useRef(null);
+  const deleteNoticeTimeoutRef = useRef(null);
 
   const applyDashboardData = (dashboardData) => {
     const sabaqCoverageMap = buildSabaqCoverageMap(dashboardData.sabaqEntries);
@@ -64,6 +68,18 @@ export default function Dashboard() {
     setPendingUndo(null);
   };
 
+  const showDeleteNotice = () => {
+    if (deleteNoticeTimeoutRef.current) {
+      window.clearTimeout(deleteNoticeTimeoutRef.current);
+    }
+
+    setDeleteNotice("Entry deleted.");
+    deleteNoticeTimeoutRef.current = window.setTimeout(() => {
+      setDeleteNotice("");
+      deleteNoticeTimeoutRef.current = null;
+    }, 2600);
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -79,6 +95,10 @@ export default function Dashboard() {
     return () => {
       if (undoTimeoutRef.current) {
         window.clearTimeout(undoTimeoutRef.current);
+      }
+
+      if (deleteNoticeTimeoutRef.current) {
+        window.clearTimeout(deleteNoticeTimeoutRef.current);
       }
     };
   }, []);
@@ -243,6 +263,7 @@ export default function Dashboard() {
           longestStreak: savedEntry.longestStreak,
           longestStreakRange: savedEntry.longestStreakRange,
           weeklyActivity: savedEntry.weeklyActivity,
+          achievementStats: savedEntry.achievementStats,
           progress: savedEntry.progress,
           sabaqEntries: savedEntry.sabaqEntries || currentData.sabaqEntries,
           latestCoverage: savedEntry.latestCoverage || currentData.latestCoverage,
@@ -292,13 +313,30 @@ export default function Dashboard() {
 
       const dashboardData = await getDashboardData();
       applyDashboardData(dashboardData);
+      showDeleteNotice();
     } catch (error) {
       alert(error.response?.data?.message || "Undo failed. Please try again.");
     }
   };
 
-  if (loadError) return <p style={styles.loading}>{loadError}</p>;
-  if (!data) return <p style={styles.loading}>Loading...</p>;
+  const renderLoadingScreen = (message) => (
+    <div style={styles.loading}>
+      <div style={styles.loadingCard}>
+        <div style={styles.loaderRing}>
+          <span style={styles.loaderDot} />
+        </div>
+        <p style={styles.loadingText}>{message}</p>
+        <div style={styles.loadingDots} aria-hidden="true">
+          <span style={styles.loadingDot} />
+          <span style={{ ...styles.loadingDot, animationDelay: "120ms" }} />
+          <span style={{ ...styles.loadingDot, animationDelay: "240ms" }} />
+        </div>
+      </div>
+    </div>
+  );
+
+  if (loadError) return renderLoadingScreen(loadError);
+  if (!data) return renderLoadingScreen("Loading your dashboard");
 
   const studentName = data.studentName || data.user?.name || "Student";
   const progress = data.progress || {};
@@ -332,10 +370,103 @@ export default function Dashboard() {
     { count: 1, label: "1/3" },
     { count: 0, label: "0/3" },
   ];
+  const achievementStats = data.achievementStats || {};
+  const achievementBadges = [
+    {
+      title: "First Entry",
+      mark: "1",
+      achieved: (achievementStats.totalEntries || 0) >= 1,
+      description: "Save your first dashboard entry.",
+      achievedDescription: "You saved your first dashboard entry.",
+    },
+    {
+      title: "One Week Strong",
+      mark: "7 🔥",
+      achieved: data.longestStreak >= 7,
+      description: "Complete all 3 daily sections 7 days in a row.",
+      achievedDescription: "You reached a 7 day streak.",
+    },
+    {
+      title: "30 Day Streak",
+      mark: "30 🔥",
+      achieved: data.longestStreak >= 30,
+      description: "Complete all 3 daily sections 30 days in a row.",
+      achievedDescription: "You reached a 30 day streak.",
+    },
+    {
+      title: "First Juz",
+      mark: "1/30",
+      achieved: (progress.juz || 0) >= 1,
+      description: "Finish every ayah in a juz through Sabaq.",
+      achievedDescription: "You memorized one juz.",
+    },
+    {
+      title: "5 Ajzaa",
+      mark: "5/30",
+      achieved: (progress.juz || 0) >= 5,
+      description: "Memorize 5 ajzaa.",
+      achievedDescription: "You memorized 5 ajzaa.",
+    },
+    {
+      title: "15 Ajzaa",
+      mark: "15",
+      achieved: (progress.juz || 0) >= 15,
+      description: "Memorize 15 ajzaa.",
+      achievedDescription: "You memorized 15 ajzaa.",
+    },
+    {
+      title: "First Surah",
+      mark: "1/114",
+      achieved: (progress.surahs || 0) >= 1,
+      description: "Finish every ayah in a surah through Sabaq.",
+      achievedDescription: "You completed at least one surah.",
+    },
+    {
+      title: "50 Revisions",
+      mark: "50",
+      achieved: (achievementStats.revisionSessions || 0) >= 50,
+      description: "Save 50 Revision sessions.",
+      achievedDescription: "You saved 50 Revision sessions.",
+    },
+    {
+      title: "100 Revisions",
+      mark: "100",
+      achieved: (achievementStats.revisionSessions || 0) >= 100,
+      description: "Save 100 Revision sessions.",
+      achievedDescription: "You saved 100 Revision sessions.",
+    },
+  ];
   const canSaveEntry = activeCoverageKeys.length > 0 || notes.trim().length > 0;
 
   return (
-    <div style={styles.page}>
+    <div className={darkMode ? "dashboard-page dashboard-dark" : "dashboard-page"} style={styles.page}>
+      <div style={styles.topActions}>
+        <button
+          type="button"
+          onClick={() => setShowBadges(true)}
+          aria-label="Open achievement badges"
+          title="Achievement badges"
+          style={{
+            ...styles.topActionButton,
+            ...(darkMode ? styles.themeToggleDark : {}),
+          }}
+        >
+          🏅
+        </button>
+        <button
+          type="button"
+          onClick={() => setDarkMode((currentMode) => !currentMode)}
+          aria-label={darkMode ? "Turn off dark mode" : "Turn on dark mode"}
+          title={darkMode ? "Light mode" : "Dark mode"}
+          style={{
+            ...styles.topActionButton,
+            ...(darkMode ? styles.themeToggleDark : {}),
+          }}
+        >
+          ☾
+        </button>
+      </div>
+
       <header style={styles.header}>
         <p style={styles.kicker}>وَلَقَدْ يَسَّرْنَا ٱلْقُرْءَانَ لِلذِّكْرِ فَهَلْ مِن مُّدَّكِرٍۢ</p>
         <p style={styles.verseReference}>54:17</p>
@@ -684,6 +815,48 @@ export default function Dashboard() {
           </button>
         </div>
       ) : null}
+
+      {deleteNotice ? <div style={styles.deleteNoticeToast}>{deleteNotice}</div> : null}
+
+      {showBadges ? (
+        <div style={styles.badgeOverlay} onClick={() => setShowBadges(false)}>
+          <section style={styles.badgeModal} onClick={(event) => event.stopPropagation()}>
+            <div style={styles.badgeHeader}>
+              <div>
+                <p style={styles.badgeEyebrow}>Milestones</p>
+                <h2 style={styles.badgeTitle}>Achievement Badges</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBadges(false)}
+                aria-label="Close badges"
+                style={styles.badgeCloseButton}
+              >
+                X
+              </button>
+            </div>
+
+            <div style={styles.badgeGrid}>
+              {achievementBadges.map((badge) => (
+                <div
+                  key={badge.title}
+                  className="achievement-badge-card"
+                  style={{
+                    ...styles.badgeCard,
+                    ...(badge.achieved ? styles.badgeCardAchieved : styles.badgeCardLocked),
+                  }}
+                >
+                  <div style={styles.badgeMark}>{badge.mark}</div>
+                  <h3 style={styles.badgeName}>{badge.title}</h3>
+                  <p className="achievement-badge-description" style={styles.badgeDescription}>
+                    {badge.achieved ? badge.achievedDescription : badge.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -697,6 +870,36 @@ const styles = {
     fontFamily: 'Aptos, "Segoe UI", Inter, ui-sans-serif, system-ui, sans-serif',
     overflowX: "auto",
   },
+  topActions: {
+    position: "fixed",
+    top: 18,
+    right: 18,
+    zIndex: 30,
+    display: "flex",
+    gap: 8,
+  },
+  topActionButton: {
+    width: 38,
+    minHeight: 36,
+    display: "grid",
+    placeItems: "center",
+    color: "#1f7a55",
+    background: "rgba(255,255,255,0.9)",
+    border: "1px solid #d8e3dc",
+    borderRadius: 8,
+    padding: 0,
+    fontSize: 18,
+    fontWeight: 850,
+    lineHeight: 1,
+    boxShadow: "0 12px 26px rgba(32, 63, 48, 0.1)",
+    cursor: "pointer",
+  },
+  themeToggleDark: {
+    color: "#d9f5e7",
+    background: "rgba(24, 36, 31, 0.92)",
+    borderColor: "rgba(119, 154, 135, 0.35)",
+    boxShadow: "0 14px 30px rgba(0, 0, 0, 0.24)",
+  },
   loading: {
     minHeight: "100vh",
     display: "grid",
@@ -704,12 +907,58 @@ const styles = {
     color: "#557166",
     background: "#eef3ef",
   },
+  loadingCard: {
+    display: "grid",
+    justifyItems: "center",
+    gap: 14,
+    padding: "28px 32px",
+    background: "rgba(255,255,255,0.72)",
+    border: "1px solid #dce6df",
+    borderRadius: 8,
+    boxShadow: "0 18px 45px rgba(32, 63, 48, 0.08)",
+    animation: "dashboard-dissolve-in 1050ms cubic-bezier(0.22, 1, 0.36, 1) forwards",
+  },
+  loaderRing: {
+    position: "relative",
+    width: 46,
+    height: 46,
+    border: "2px solid rgba(31, 122, 85, 0.16)",
+    borderTopColor: "#1f7a55",
+    borderRadius: "50%",
+    animation: "loader-spin 900ms linear infinite",
+  },
+  loaderDot: {
+    position: "absolute",
+    top: 4,
+    right: 6,
+    width: 8,
+    height: 8,
+    background: "#d7ad4f",
+    borderRadius: "50%",
+    boxShadow: "0 0 0 4px rgba(215, 173, 79, 0.12)",
+  },
+  loadingText: {
+    color: "#40534b",
+    fontSize: 15,
+    fontWeight: 800,
+  },
+  loadingDots: {
+    display: "flex",
+    gap: 5,
+  },
+  loadingDot: {
+    width: 6,
+    height: 6,
+    background: "#1f7a55",
+    borderRadius: "50%",
+    animation: "loader-dot-pulse 900ms ease-in-out infinite",
+  },
   header: {
     maxWidth: 1120,
     margin: "0 auto 24px",
     textAlign: "center",
     opacity: 0,
-    animation: "dashboard-dissolve-in 700ms ease-out 80ms forwards",
+    animation: "dashboard-dissolve-in 1250ms cubic-bezier(0.22, 1, 0.36, 1) 80ms forwards",
   },
   kicker: {
     color: "#4d7c65",
@@ -770,19 +1019,19 @@ const styles = {
     padding: 22,
     boxShadow: "0 18px 45px rgba(32, 63, 48, 0.08)",
     opacity: 0,
-    animation: "dashboard-dissolve-in 760ms ease-out forwards",
+    animation: "dashboard-dissolve-in 1250ms cubic-bezier(0.22, 1, 0.36, 1) forwards",
   },
   panelIntroOne: {
     animationDelay: "180ms",
   },
   panelIntroTwo: {
-    animationDelay: "300ms",
+    animationDelay: "340ms",
   },
   panelIntroThree: {
-    animationDelay: "240ms",
+    animationDelay: "260ms",
   },
   panelIntroFour: {
-    animationDelay: "360ms",
+    animationDelay: "460ms",
   },
   panelTitle: {
     color: "#18231f",
@@ -1112,6 +1361,137 @@ const styles = {
     fontSize: 13,
     fontWeight: 900,
     cursor: "pointer",
+  },
+  deleteNoticeToast: {
+    position: "fixed",
+    left: "50%",
+    bottom: 26,
+    zIndex: 20,
+    minHeight: 42,
+    color: "#1f7a55",
+    background: "rgba(251, 253, 251, 0.96)",
+    border: "1px solid #d8e3dc",
+    borderRadius: 8,
+    padding: "11px 17px",
+    fontSize: 14,
+    fontWeight: 800,
+    boxShadow: "0 18px 36px rgba(23, 32, 27, 0.14)",
+    transform: "translateX(-50%)",
+    animation: "notice-dissolve-life 2600ms ease-in-out forwards",
+  },
+  badgeOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 50,
+    display: "grid",
+    placeItems: "center",
+    padding: 24,
+    background: "rgba(13, 21, 17, 0.42)",
+    backdropFilter: "blur(7px)",
+    animation: "modal-dissolve-in 220ms ease-out forwards",
+  },
+  badgeModal: {
+    width: "min(720px, 100%)",
+    maxHeight: "min(760px, 88vh)",
+    overflowY: "auto",
+    background: "rgba(255,255,255,0.97)",
+    border: "1px solid #dce6df",
+    borderRadius: 8,
+    padding: 24,
+    boxShadow: "0 28px 70px rgba(13, 21, 17, 0.24)",
+  },
+  badgeHeader: {
+    display: "flex",
+    alignItems: "start",
+    justifyContent: "space-between",
+    gap: 18,
+    marginBottom: 18,
+  },
+  badgeEyebrow: {
+    color: "#1f7a55",
+    fontSize: 12,
+    fontWeight: 850,
+    textTransform: "uppercase",
+    marginBottom: 5,
+  },
+  badgeTitle: {
+    color: "#17201b",
+    fontSize: 24,
+    lineHeight: 1.15,
+    fontWeight: 850,
+  },
+  badgeCloseButton: {
+    color: "#5f7068",
+    background: "transparent",
+    border: 0,
+    fontSize: 15,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  badgeGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+    gap: 12,
+  },
+  badgeCard: {
+    position: "relative",
+    minHeight: 178,
+    display: "grid",
+    alignContent: "start",
+    justifyItems: "center",
+    gap: 8,
+    textAlign: "center",
+    border: "1px solid #dce6df",
+    borderRadius: 8,
+    padding: "18px 14px",
+    overflow: "hidden",
+  },
+  badgeCardAchieved: {
+    color: "#17201b",
+    background: "linear-gradient(180deg, #fbfdfb 0%, #edf7f1 100%)",
+    borderColor: "#cfe5d8",
+  },
+  badgeCardLocked: {
+    color: "#7b8983",
+    background: "#f0f3f1",
+    filter: "grayscale(1)",
+    opacity: 0.68,
+  },
+  badgeMark: {
+    width: 58,
+    height: 58,
+    display: "grid",
+    placeItems: "center",
+    color: "white",
+    background: "#1f7a55",
+    borderRadius: "50%",
+    fontSize: 15,
+    fontWeight: 900,
+    boxShadow: "0 10px 18px rgba(31, 122, 85, 0.18)",
+  },
+  badgeName: {
+    color: "inherit",
+    fontSize: 15,
+    fontWeight: 850,
+    lineHeight: 1.2,
+  },
+  badgeDescription: {
+    position: "absolute",
+    inset: "auto 10px 10px",
+    minHeight: 52,
+    display: "grid",
+    placeItems: "center",
+    color: "#40534b",
+    background: "rgba(255,255,255,0.95)",
+    border: "1px solid #dce6df",
+    borderRadius: 7,
+    padding: "8px 9px",
+    fontSize: 12,
+    lineHeight: 1.35,
+    fontWeight: 750,
+    opacity: 0,
+    transform: "translateY(8px)",
+    pointerEvents: "none",
   },
   emptyText: {
     color: "#64766d",

@@ -11,6 +11,7 @@ export default function Login() {
   const [mode, setMode] = useState("login");
   const [signupStep, setSignupStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [signupForm, setSignupForm] = useState({
     name: "",
@@ -35,6 +36,7 @@ export default function Login() {
   );
 
   const updateLoginForm = (field, value) => {
+    setLoginError("");
     setLoginForm((currentForm) => ({
       ...currentForm,
       [field]: value,
@@ -64,6 +66,7 @@ export default function Login() {
   };
 
   const handleLogin = async () => {
+    setLoginError("");
     setIsLoading(true);
 
     try {
@@ -72,7 +75,7 @@ export default function Login() {
       saveSession(res.data);
       navigate(redirectTo, { replace: true });
     } catch (err) {
-      alert("Login failed");
+      setLoginError(err.response?.data?.message || "Login failed. Please check your email and password.");
     } finally {
       setIsLoading(false);
     }
@@ -179,6 +182,8 @@ export default function Login() {
                 style={styles.input}
               />
             </label>
+
+            {loginError ? <p style={styles.notification}>{loginError}</p> : null}
 
             <button
               type="button"
@@ -480,6 +485,16 @@ const styles = {
     color: "#5b7067",
     fontSize: 13,
     fontWeight: 700,
+  },
+  notification: {
+    color: "#9a3d34",
+    background: "#fff4f2",
+    border: "1px solid #f1c7c1",
+    borderRadius: 8,
+    padding: "11px 13px",
+    fontSize: 13,
+    fontWeight: 750,
+    lineHeight: 1.4,
   },
   fieldText: {
     color: "#5b7067",

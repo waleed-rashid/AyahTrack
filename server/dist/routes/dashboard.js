@@ -99,6 +99,11 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
             (entry.sabaqParaSaved && entry.sabaqPara.trim() ? entry.sabaqPara : ""),
         manzil: coverage.manzil || (entry.manzilSaved && entry.manzil.trim() ? entry.manzil : ""),
     }), { sabaq: "", sabaqPara: "", manzil: "" });
+    const achievementStats = {
+        totalEntries: allEntries.length,
+        revisionSessions: allEntries.filter((entry) => entry.manzilSaved && entry.manzil.trim())
+            .length,
+    };
     res.json({
         studentName: user.name,
         user: {
@@ -120,6 +125,7 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
         longestStreak: streakStats.longestStreak,
         longestStreakRange: streakStats.longestStreakRange,
         weeklyActivity,
+        achievementStats,
         sabaqEntries: allEntries
             .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
             .map((entry) => ({ sabaq: entry.sabaq })),

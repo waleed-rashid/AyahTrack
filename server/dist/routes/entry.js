@@ -111,6 +111,11 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
         manzil: coverage.manzil ||
             (savedEntry.manzilSaved && savedEntry.manzil.trim() ? savedEntry.manzil : ""),
     }), { sabaq: "", sabaqPara: "", manzil: "" });
+    const achievementStats = {
+        totalEntries: entries.length,
+        revisionSessions: entries.filter((savedEntry) => savedEntry.manzilSaved && savedEntry.manzil.trim())
+            .length,
+    };
     await prisma_1.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -133,6 +138,7 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
         longestStreak: streakStats.longestStreak,
         longestStreakRange: streakStats.longestStreakRange,
         weeklyActivity,
+        achievementStats,
         sabaqEntries: entries
             .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
             .map((entry) => ({ sabaq: entry.sabaq })),

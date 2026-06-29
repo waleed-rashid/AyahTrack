@@ -138,6 +138,11 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
     }),
     { sabaq: "", sabaqPara: "", manzil: "" }
   );
+  const achievementStats = {
+    totalEntries: entries.length,
+    revisionSessions: entries.filter((savedEntry) => savedEntry.manzilSaved && savedEntry.manzil.trim())
+      .length,
+  };
 
   await prisma.user.update({
     where: { id: user.id },
@@ -162,6 +167,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
     longestStreak: streakStats.longestStreak,
     longestStreakRange: streakStats.longestStreakRange,
     weeklyActivity,
+    achievementStats,
     sabaqEntries: entries
       .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
       .map((entry) => ({ sabaq: entry.sabaq })),
