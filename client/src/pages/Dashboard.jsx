@@ -8,6 +8,7 @@ import {
   formatCoverageRange,
   formatRecentCoverage,
   getSurahByNumber,
+  hasSavedCoverage,
   isVisibleRecentEntry,
 } from "../utils/coverage";
 import { formatEntryDate } from "../utils/dates";
@@ -15,6 +16,7 @@ import { formatEntryDate } from "../utils/dates";
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [coverage, setCoverage] = useState(createDefaultCoverage);
+  const [activeCoverageKeys, setActiveCoverageKeys] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
 
@@ -105,33 +107,76 @@ export default function Dashboard() {
     });
   };
 
+  const toggleCoverageSection = (typeKey) => {
+    setActiveCoverageKeys((currentKeys) =>
+      currentKeys.includes(typeKey)
+        ? currentKeys.filter((key) => key !== typeKey)
+        : [...currentKeys, typeKey]
+    );
+  };
+
   const saveEntry = async () => {
-    const sabaq = formatCoverageRange(coverage.sabaq);
-    const sabaqPara = formatCoverageRange(coverage.sabaqPara);
-    const revision = formatCoverageRange(coverage.revision);
+    if (activeCoverageKeys.length === 0) {
+      alert("Choose Sabaq, Sabaq Para, or Revision first.");
+      return;
+    }
+
+    const selectedCoverage = activeCoverageKeys.reduce((selected, typeKey) => {
+      selected[typeKey] = coverage[typeKey];
+      return selected;
+    }, {});
+    const entryPayload = {
+      notes: "",
+      coverage: selectedCoverage,
+    };
+
+    if (activeCoverageKeys.includes("sabaq")) {
+      entryPayload.sabaq = formatCoverageRange(coverage.sabaq);
+    }
+
+    if (activeCoverageKeys.includes("sabaqPara")) {
+      entryPayload.sabaqPara = formatCoverageRange(coverage.sabaqPara);
+    }
+
+    if (activeCoverageKeys.includes("revision")) {
+      entryPayload.manzil = formatCoverageRange(coverage.revision);
+    }
 
     setIsSaving(true);
 
     try {
-      const savedEntry = await createDailyEntry({
-        sabaq,
-        sabaqPara,
-        manzil: revision,
-        notes: "",
-        coverage,
-      });
+      const savedEntry = await createDailyEntry(entryPayload);
+      const returnedRecentEntries = Array.isArray(savedEntry.recentEntries)
+        ? savedEntry.recentEntries
+        : [];
 
-      setData((currentData) => ({
-        ...currentData,
-        streak: savedEntry.streak,
-        longestStreak: savedEntry.longestStreak,
-        progress: savedEntry.progress,
-        recentEntries: [
+      setData((currentData) => {
+        const currentRecentEntries = Array.isArray(currentData.recentEntries)
+          ? currentData.recentEntries
+          : [];
+        const nextRecentEntries = [
           savedEntry.entry,
-          ...(Array.isArray(currentData.recentEntries) ? currentData.recentEntries : []),
-        ].slice(0, 7),
-      }));
+          ...returnedRecentEntries,
+          ...currentRecentEntries,
+        ]
+          .filter(
+            (entry, index, entries) =>
+              entry?.id && entries.findIndex((candidate) => candidate.id === entry.id) === index
+          )
+          .slice(0, 7);
+
+        return {
+          ...currentData,
+          streak: savedEntry.streak,
+          longestStreak: savedEntry.longestStreak,
+          progress: savedEntry.progress,
+          recentEntries: nextRecentEntries,
+        };
+      });
       setCoverage(createCoverageFromEntry(savedEntry.entry));
+      setActiveCoverageKeys([]);
+    } catch (error) {
+      alert(error.response?.data?.message || "Entry failed to save. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -149,7 +194,9 @@ export default function Dashboard() {
     : null;
   const currentProgressText =
     currentSurah && progress.currentAyah
-      ? `${currentSurah.name} ${progress.currentAyah}`
+      ? Number(progress.currentAyah) === currentSurah.ayahs
+        ? currentSurah.name
+        : `${currentSurah.name} ${progress.currentAyah}`
       : "Not set";
 
   return (
@@ -226,8 +273,30 @@ export default function Dashboard() {
           <section style={{ ...styles.panel, ...styles.panelIntroThree }}>
             <h2 style={styles.panelTitle}>What did you cover today? 🧠</h2>
 
+            <div style={styles.addButtonRow}>
+              {coverageTypes.map((type) => (
+                <button
+                  key={type.key}
+                  type="button"
+                  onClick={() => toggleCoverageSection(type.key)}
+                  style={{
+                    ...styles.addCoverageButton,
+                    ...(activeCoverageKeys.includes(type.key) ? styles.addCoverageButtonActive : {}),
+                  }}
+                >
+                  + {type.label}
+                </button>
+              ))}
+            </div>
+
             <div style={styles.coverageList}>
-              {coverageTypes.map((type) => {
+              {activeCoverageKeys.length === 0 ? (
+                <p style={styles.emptyCoverageText}>Choose what you want to add today.</p>
+              ) : null}
+
+              {coverageTypes
+                .filter((type) => activeCoverageKeys.includes(type.key))
+                .map((type) => {
                 const entry = coverage[type.key];
                 const startSurah = getSurahByNumber(entry.startSurahNumber);
                 const endSurah = getSurahByNumber(entry.endSurahNumber);
@@ -326,11 +395,11 @@ export default function Dashboard() {
               type="button"
               style={{
                 ...styles.button,
-                opacity: isSaving ? 0.7 : 1,
-                cursor: isSaving ? "not-allowed" : "pointer",
+                opacity: isSaving || activeCoverageKeys.length === 0 ? 0.7 : 1,
+                cursor: isSaving || activeCoverageKeys.length === 0 ? "not-allowed" : "pointer",
               }}
               onClick={saveEntry}
-              disabled={isSaving}
+              disabled={isSaving || activeCoverageKeys.length === 0}
             >
               {isSaving ? "Saving..." : "Save Entry"}
             </button>
@@ -345,15 +414,21 @@ export default function Dashboard() {
               recentEntries.map((entry) => (
                 <div key={entry.id} style={styles.entry}>
                   <p style={styles.entryDate}>{formatEntryDate(entry.date)}</p>
-                  <p style={styles.entryLine}>
-                    <b>Sabaq:</b> {formatRecentCoverage(entry.sabaq)}
-                  </p>
-                  <p style={styles.entryLine}>
-                    <b>Sabaq Para:</b> {formatRecentCoverage(entry.sabaqPara)}
-                  </p>
-                  <p style={styles.entryLine}>
-                    <b>Revision:</b> {formatRecentCoverage(entry.manzil)}
-                  </p>
+                  {hasSavedCoverage(entry.sabaq, entry.sabaqSaved) ? (
+                    <p style={styles.entryLine}>
+                      <b>Sabaq:</b> {formatRecentCoverage(entry.sabaq)}
+                    </p>
+                  ) : null}
+                  {hasSavedCoverage(entry.sabaqPara, entry.sabaqParaSaved) ? (
+                    <p style={styles.entryLine}>
+                      <b>Sabaq Para:</b> {formatRecentCoverage(entry.sabaqPara)}
+                    </p>
+                  ) : null}
+                  {hasSavedCoverage(entry.manzil, entry.manzilSaved) ? (
+                    <p style={styles.entryLine}>
+                      <b>Revision:</b> {formatRecentCoverage(entry.manzil)}
+                    </p>
+                  ) : null}
                 </div>
               ))
             )}
@@ -555,10 +630,40 @@ const styles = {
     marginTop: 7,
     textAlign: "right",
   },
+  addButtonRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: 8,
+    marginBottom: 16,
+  },
+  addCoverageButton: {
+    minHeight: 38,
+    color: "#1f7a55",
+    background: "#edf7f1",
+    border: "1px solid #d8ecdf",
+    borderRadius: 7,
+    fontWeight: 750,
+    cursor: "pointer",
+  },
+  addCoverageButtonActive: {
+    color: "white",
+    background: "#1f7a55",
+    borderColor: "#1b6f4d",
+    cursor: "pointer",
+  },
   coverageList: {
     display: "grid",
     gap: 16,
     marginBottom: 18,
+  },
+  emptyCoverageText: {
+    color: "#64766d",
+    fontSize: 14,
+    background: "#fbfdfb",
+    border: "1px dashed #d8e3dc",
+    borderRadius: 8,
+    padding: 14,
+    textAlign: "center",
   },
   coverageGroup: {
     padding: "0 0 16px",

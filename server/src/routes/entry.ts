@@ -61,14 +61,53 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
     },
   });
 
-  const entry = await prisma.dailyEntry.create({
-    data: {
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const existingEntry = await prisma.dailyEntry.findFirst({
+    where: {
       userId: req.userId,
-      sabaq,
-      sabaqPara,
-      manzil,
-      notes,
+      date: {
+        gte: today,
+        lt: tomorrow,
+      },
     },
+    orderBy: { date: "desc" },
+  });
+  const entryData = {
+    ...(sabaq !== undefined ? { sabaq, sabaqSaved: true } : {}),
+    ...(sabaqPara !== undefined ? { sabaqPara, sabaqParaSaved: true } : {}),
+    ...(manzil !== undefined ? { manzil, manzilSaved: true } : {}),
+    ...(notes !== undefined ? { notes } : {}),
+  };
+  const canMergeWithExistingEntry =
+    existingEntry &&
+    (sabaq === undefined || !existingEntry.sabaqSaved) &&
+    (sabaqPara === undefined || !existingEntry.sabaqParaSaved) &&
+    (manzil === undefined || !existingEntry.manzilSaved);
+
+  const entry = canMergeWithExistingEntry
+    ? await prisma.dailyEntry.update({
+        where: { id: existingEntry.id },
+        data: entryData,
+      })
+    : await prisma.dailyEntry.create({
+        data: {
+          userId: req.userId,
+          sabaq: sabaq || "",
+          sabaqPara: sabaqPara || "",
+          manzil: manzil || "",
+          sabaqSaved: sabaq !== undefined,
+          sabaqParaSaved: sabaqPara !== undefined,
+          manzilSaved: manzil !== undefined,
+          notes,
+        },
+      });
+
+  const recentEntries = await prisma.dailyEntry.findMany({
+    where: { userId: req.userId },
+    orderBy: { date: "desc" },
+    take: 7,
   });
 
   const entries = await prisma.dailyEntry.findMany({
@@ -79,7 +118,9 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
       manzil: true,
     },
   });
-  const sabaqRange = normalizeCoverageRange(coverage?.sabaq) || parseCoverageRange(sabaq);
+  const sabaqRange =
+    normalizeCoverageRange(coverage?.sabaq) ||
+    (sabaq !== undefined ? parseCoverageRange(entry.sabaq) : null);
   const currentJuz =
     sabaqRange && getJuzForAyahReference(sabaqRange.endSurahNumber, sabaqRange.endAyah);
   const effectiveCurrentJuz = currentJuz ?? user.currentJuz;
@@ -117,6 +158,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
       pages: 0,
       surahs: 0,
     },
+    recentEntries,
   });
 });
 

@@ -122,8 +122,8 @@ export default function Login() {
     <div style={styles.page}>
       <main style={styles.card}>
         <img src={hifzLogo} alt="Hifz Tracker" style={styles.logo} />
-        <p style={styles.kicker}>Hifz Tracker</p>
-        <h1 style={styles.title}>{showLogin ? "Welcome back" : "Create your account"}</h1>
+        <p style={styles.kicker}>AyahTrack</p>
+        <h1 style={styles.title}>{showLogin ? "Welcome Back" : "Create Your Account"}</h1>
         <p style={styles.subtitle}>
           {showLogin
             ? "Sign in to continue your memorization journey."
@@ -163,7 +163,7 @@ export default function Login() {
               <input
                 value={loginForm.email}
                 type="email"
-                placeholder="you@example.com"
+                placeholder="Enter your email"
                 onChange={(e) => updateLoginForm("email", e.target.value)}
                 style={styles.input}
               />

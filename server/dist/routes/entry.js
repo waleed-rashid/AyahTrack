@@ -47,14 +47,49 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
             lastEntryDate: today,
         },
     });
-    const entry = await prisma_1.prisma.dailyEntry.create({
-        data: {
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const existingEntry = await prisma_1.prisma.dailyEntry.findFirst({
+        where: {
             userId: req.userId,
-            sabaq,
-            sabaqPara,
-            manzil,
-            notes,
+            date: {
+                gte: today,
+                lt: tomorrow,
+            },
         },
+        orderBy: { date: "desc" },
+    });
+    const entryData = {
+        ...(sabaq !== undefined ? { sabaq, sabaqSaved: true } : {}),
+        ...(sabaqPara !== undefined ? { sabaqPara, sabaqParaSaved: true } : {}),
+        ...(manzil !== undefined ? { manzil, manzilSaved: true } : {}),
+        ...(notes !== undefined ? { notes } : {}),
+    };
+    const canMergeWithExistingEntry = existingEntry &&
+        (sabaq === undefined || !existingEntry.sabaqSaved) &&
+        (sabaqPara === undefined || !existingEntry.sabaqParaSaved) &&
+        (manzil === undefined || !existingEntry.manzilSaved);
+    const entry = canMergeWithExistingEntry
+        ? await prisma_1.prisma.dailyEntry.update({
+            where: { id: existingEntry.id },
+            data: entryData,
+        })
+        : await prisma_1.prisma.dailyEntry.create({
+            data: {
+                userId: req.userId,
+                sabaq: sabaq || "",
+                sabaqPara: sabaqPara || "",
+                manzil: manzil || "",
+                sabaqSaved: sabaq !== undefined,
+                sabaqParaSaved: sabaqPara !== undefined,
+                manzilSaved: manzil !== undefined,
+                notes,
+            },
+        });
+    const recentEntries = await prisma_1.prisma.dailyEntry.findMany({
+        where: { userId: req.userId },
+        orderBy: { date: "desc" },
+        take: 7,
     });
     const entries = await prisma_1.prisma.dailyEntry.findMany({
         where: { userId: req.userId },
@@ -64,7 +99,8 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
             manzil: true,
         },
     });
-    const sabaqRange = (0, quranProgress_1.normalizeCoverageRange)(coverage?.sabaq) || (0, quranProgress_1.parseCoverageRange)(sabaq);
+    const sabaqRange = (0, quranProgress_1.normalizeCoverageRange)(coverage?.sabaq) ||
+        (sabaq !== undefined ? (0, quranProgress_1.parseCoverageRange)(entry.sabaq) : null);
     const currentJuz = sabaqRange && (0, quranProgress_1.getJuzForAyahReference)(sabaqRange.endSurahNumber, sabaqRange.endAyah);
     const effectiveCurrentJuz = currentJuz ?? user.currentJuz;
     const currentSurah = sabaqRange?.endSurahNumber ?? user.currentSurah;
@@ -95,6 +131,7 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
             pages: 0,
             surahs: 0,
         },
+        recentEntries,
     });
 });
 // GET MY ENTRIES

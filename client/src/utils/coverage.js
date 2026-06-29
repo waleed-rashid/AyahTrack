@@ -136,5 +136,22 @@ export const createCoverageFromEntry = (entry) => {
   };
 };
 
+export const hasSavedCoverage = (coverageText, savedFlag) => {
+  if (savedFlag === false) {
+    return false;
+  }
+
+  const trimmedCoverage = String(coverageText || "").trim();
+
+  return (
+    trimmedCoverage.length > 0 &&
+    trimmedCoverage.toLowerCase() !== "undefined" &&
+    trimmedCoverage.toLowerCase() !== "null"
+  );
+};
+
 export const isVisibleRecentEntry = (entry) =>
+  (hasSavedCoverage(entry.sabaq, entry.sabaqSaved) ||
+    hasSavedCoverage(entry.sabaqPara, entry.sabaqParaSaved) ||
+    hasSavedCoverage(entry.manzil, entry.manzilSaved)) &&
   !entry.sabaq?.toLowerCase().includes("surah yasin");

@@ -35,6 +35,9 @@ model DailyEntry {
   sabaq     String
   sabaqPara String
   manzil    String
+  sabaqSaved     Boolean @default(false)
+  sabaqParaSaved Boolean @default(false)
+  manzilSaved    Boolean @default(false)
   notes     String?
 
   user      User @relation(fields: [userId], references: [id])
