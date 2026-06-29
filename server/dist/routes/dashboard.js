@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const quranProgress_1 = require("../quranProgress");
+const streaks_1 = require("../streaks");
 const router = express_1.default.Router();
 // GET DASHBOARD DATA
 router.get("/", auth_1.authMiddleware, async (req, res) => {
@@ -21,6 +22,7 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
             email: true,
             streak: true,
             longestStreak: true,
+            lastEntryDate: true,
             memorizedJuzCount: true,
             memorizedJuzList: true,
             currentJuz: true,
@@ -42,11 +44,16 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
         where: { userId: req.userId },
         orderBy: { date: "desc" },
         select: {
+            date: true,
             sabaq: true,
             sabaqPara: true,
             manzil: true,
+            sabaqSaved: true,
+            sabaqParaSaved: true,
+            manzilSaved: true,
         },
     });
+    const streakStats = (0, streaks_1.calculateStreakStats)(allEntries, today);
     const memorizedJuz = (0, quranProgress_1.calculateCompletedJuz)(allEntries, (0, quranProgress_1.parseMemorizedJuzList)(user.memorizedJuzList));
     const latestSabaqRange = (0, quranProgress_1.getLatestSabaqRange)(allEntries);
     const currentJuz = latestSabaqRange && (0, quranProgress_1.getJuzForAyahReference)(latestSabaqRange.endSurahNumber, latestSabaqRange.endAyah);
@@ -58,7 +65,10 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
         JSON.stringify(memorizedJuz) !== user.memorizedJuzList ||
         effectiveCurrentJuz !== user.currentJuz ||
         currentSurah !== user.currentSurah ||
-        currentAyah !== user.currentAyah) {
+        currentAyah !== user.currentAyah ||
+        streakStats.currentStreak !== user.streak ||
+        streakStats.longestStreak !== user.longestStreak ||
+        streakStats.lastCompletedDate !== user.lastEntryDate?.toISOString()) {
         await prisma_1.prisma.user.update({
             where: { id: user.id },
             data: {
@@ -67,6 +77,11 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
                 currentJuz: effectiveCurrentJuz,
                 currentSurah,
                 currentAyah,
+                streak: streakStats.currentStreak,
+                longestStreak: streakStats.longestStreak,
+                lastEntryDate: streakStats.lastCompletedDate
+                    ? new Date(streakStats.lastCompletedDate)
+                    : null,
             },
         });
     }
@@ -92,8 +107,9 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
             pages: 0,
             surahs: 0,
         },
-        streak: user.streak,
-        longestStreak: user.longestStreak,
+        streak: streakStats.currentStreak,
+        longestStreak: streakStats.longestStreak,
+        longestStreakRange: streakStats.longestStreakRange,
         todayEntry: todayEntry || null,
         recentEntries,
     });

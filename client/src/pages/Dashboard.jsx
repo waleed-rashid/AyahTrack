@@ -169,6 +169,7 @@ export default function Dashboard() {
           ...currentData,
           streak: savedEntry.streak,
           longestStreak: savedEntry.longestStreak,
+          longestStreakRange: savedEntry.longestStreakRange,
           progress: savedEntry.progress,
           recentEntries: nextRecentEntries,
         };
@@ -198,6 +199,11 @@ export default function Dashboard() {
         ? currentSurah.name
         : `${currentSurah.name} ${progress.currentAyah}`
       : "Not set";
+  const longestStreakRangeText = data.longestStreakRange
+    ? `${formatEntryDate(data.longestStreakRange.startDate)} - ${formatEntryDate(
+        data.longestStreakRange.endDate
+      )}`
+    : "No streak yet";
 
   return (
     <div style={styles.page}>
@@ -265,6 +271,7 @@ export default function Dashboard() {
                 <div style={styles.streakCard}>
                   <span style={styles.streakLabel}>Longest</span>
                   <strong style={styles.streakValue}>{data.longestStreak}</strong>
+                  <span style={styles.streakDateRange}>{longestStreakRangeText}</span>
                 </div>
               </div>
             </section>
@@ -560,9 +567,18 @@ const styles = {
     marginBottom: 4,
   },
   streakValue: {
+    display: "block",
     color: "#1f7a55",
     fontSize: 22,
     lineHeight: 1,
+  },
+  streakDateRange: {
+    display: "block",
+    color: "#6d7c75",
+    fontSize: 11,
+    fontWeight: 700,
+    lineHeight: 1.25,
+    marginTop: 7,
   },
   progressList: {
     display: "grid",

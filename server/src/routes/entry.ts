@@ -9,6 +9,7 @@ import {
   parseCoverageRange,
   parseMemorizedJuzList,
 } from "../quranProgress";
+import { calculateStreakStats } from "../streaks";
 
 const router = express.Router();
 
@@ -30,36 +31,6 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
-  const last = user.lastEntryDate
-    ? new Date(user.lastEntryDate)
-    : null;
-
-  let newStreak = user.streak;
-
-  if (last) {
-    last.setHours(0, 0, 0, 0);
-
-    const diffDays =
-      (today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
-
-    if (diffDays === 1) {
-      newStreak += 1; // continued streak
-    } else if (diffDays > 1) {
-      newStreak = 1; // reset streak
-    }
-  } else {
-    newStreak = 1;
-  }
-
-  const updatedUser = await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      streak: newStreak,
-      longestStreak: Math.max(user.longestStreak, newStreak),
-      lastEntryDate: today,
-    },
-  });
 
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -113,11 +84,16 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
   const entries = await prisma.dailyEntry.findMany({
     where: { userId: req.userId },
     select: {
+      date: true,
       sabaq: true,
       sabaqPara: true,
       manzil: true,
+      sabaqSaved: true,
+      sabaqParaSaved: true,
+      manzilSaved: true,
     },
   });
+  const streakStats = calculateStreakStats(entries, today);
   const sabaqRange =
     normalizeCoverageRange(coverage?.sabaq) ||
     (sabaq !== undefined ? parseCoverageRange(entry.sabaq) : null);
@@ -141,13 +117,19 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
       currentJuz: effectiveCurrentJuz,
       currentSurah,
       currentAyah,
+      streak: streakStats.currentStreak,
+      longestStreak: streakStats.longestStreak,
+      lastEntryDate: streakStats.lastCompletedDate
+        ? new Date(streakStats.lastCompletedDate)
+        : null,
     },
   });
 
   res.json({
     entry,
-    streak: updatedUser.streak,
-    longestStreak: updatedUser.longestStreak,
+    streak: streakStats.currentStreak,
+    longestStreak: streakStats.longestStreak,
+    longestStreakRange: streakStats.longestStreakRange,
     progress: {
       juz: memorizedJuz.length,
       memorizedJuz,

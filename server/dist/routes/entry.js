@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const quranProgress_1 = require("../quranProgress");
+const streaks_1 = require("../streaks");
 const router = express_1.default.Router();
 // CREATE DAILY ENTRY
 router.post("/", auth_1.authMiddleware, async (req, res) => {
@@ -22,31 +23,6 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
     }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const last = user.lastEntryDate
-        ? new Date(user.lastEntryDate)
-        : null;
-    let newStreak = user.streak;
-    if (last) {
-        last.setHours(0, 0, 0, 0);
-        const diffDays = (today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24);
-        if (diffDays === 1) {
-            newStreak += 1; // continued streak
-        }
-        else if (diffDays > 1) {
-            newStreak = 1; // reset streak
-        }
-    }
-    else {
-        newStreak = 1;
-    }
-    const updatedUser = await prisma_1.prisma.user.update({
-        where: { id: user.id },
-        data: {
-            streak: newStreak,
-            longestStreak: Math.max(user.longestStreak, newStreak),
-            lastEntryDate: today,
-        },
-    });
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const existingEntry = await prisma_1.prisma.dailyEntry.findFirst({
@@ -94,11 +70,16 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
     const entries = await prisma_1.prisma.dailyEntry.findMany({
         where: { userId: req.userId },
         select: {
+            date: true,
             sabaq: true,
             sabaqPara: true,
             manzil: true,
+            sabaqSaved: true,
+            sabaqParaSaved: true,
+            manzilSaved: true,
         },
     });
+    const streakStats = (0, streaks_1.calculateStreakStats)(entries, today);
     const sabaqRange = (0, quranProgress_1.normalizeCoverageRange)(coverage?.sabaq) ||
         (sabaq !== undefined ? (0, quranProgress_1.parseCoverageRange)(entry.sabaq) : null);
     const currentJuz = sabaqRange && (0, quranProgress_1.getJuzForAyahReference)(sabaqRange.endSurahNumber, sabaqRange.endAyah);
@@ -115,12 +96,18 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
             currentJuz: effectiveCurrentJuz,
             currentSurah,
             currentAyah,
+            streak: streakStats.currentStreak,
+            longestStreak: streakStats.longestStreak,
+            lastEntryDate: streakStats.lastCompletedDate
+                ? new Date(streakStats.lastCompletedDate)
+                : null,
         },
     });
     res.json({
         entry,
-        streak: updatedUser.streak,
-        longestStreak: updatedUser.longestStreak,
+        streak: streakStats.currentStreak,
+        longestStreak: streakStats.longestStreak,
+        longestStreakRange: streakStats.longestStreakRange,
         progress: {
             juz: memorizedJuz.length,
             memorizedJuz,

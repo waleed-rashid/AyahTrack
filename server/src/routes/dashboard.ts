@@ -8,6 +8,7 @@ import {
   getLatestSabaqRange,
   parseMemorizedJuzList,
 } from "../quranProgress";
+import { calculateStreakStats } from "../streaks";
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
       email: true,
       streak: true,
       longestStreak: true,
+      lastEntryDate: true,
       memorizedJuzCount: true,
       memorizedJuzList: true,
       currentJuz: true,
@@ -49,11 +51,16 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     where: { userId: req.userId },
     orderBy: { date: "desc" },
     select: {
+      date: true,
       sabaq: true,
       sabaqPara: true,
       manzil: true,
+      sabaqSaved: true,
+      sabaqParaSaved: true,
+      manzilSaved: true,
     },
   });
+  const streakStats = calculateStreakStats(allEntries, today);
   const memorizedJuz = calculateCompletedJuz(
     allEntries,
     parseMemorizedJuzList(user.memorizedJuzList)
@@ -71,7 +78,10 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     JSON.stringify(memorizedJuz) !== user.memorizedJuzList ||
     effectiveCurrentJuz !== user.currentJuz ||
     currentSurah !== user.currentSurah ||
-    currentAyah !== user.currentAyah
+    currentAyah !== user.currentAyah ||
+    streakStats.currentStreak !== user.streak ||
+    streakStats.longestStreak !== user.longestStreak ||
+    streakStats.lastCompletedDate !== user.lastEntryDate?.toISOString()
   ) {
     await prisma.user.update({
       where: { id: user.id },
@@ -81,6 +91,11 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
         currentJuz: effectiveCurrentJuz,
         currentSurah,
         currentAyah,
+        streak: streakStats.currentStreak,
+        longestStreak: streakStats.longestStreak,
+        lastEntryDate: streakStats.lastCompletedDate
+          ? new Date(streakStats.lastCompletedDate)
+          : null,
       },
     });
   }
@@ -108,8 +123,9 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
       pages: 0,
       surahs: 0,
     },
-    streak: user.streak,
-    longestStreak: user.longestStreak,
+    streak: streakStats.currentStreak,
+    longestStreak: streakStats.longestStreak,
+    longestStreakRange: streakStats.longestStreakRange,
     todayEntry: todayEntry || null,
     recentEntries,
   });
