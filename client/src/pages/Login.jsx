@@ -6,15 +6,96 @@ import hifzLogo from "../assets/hifz-logo.png";
 import { surahs } from "../data/surahs";
 
 const juzOptions = Array.from({ length: 30 }, (_, index) => index + 1);
-const sabaqPageOptions = [0.25, 0.5, 0.75, 1];
-const sabaqParaPageOptions = Array.from({ length: 10 }, (_, index) => index + 1);
-const revisionJuzOptions = [0.25, 0.5, 0.75, 1];
+const juzStarts = [
+  { juz: 1, surah: 1, ayah: 1 },
+  { juz: 2, surah: 2, ayah: 142 },
+  { juz: 3, surah: 2, ayah: 253 },
+  { juz: 4, surah: 3, ayah: 93 },
+  { juz: 5, surah: 4, ayah: 24 },
+  { juz: 6, surah: 4, ayah: 148 },
+  { juz: 7, surah: 5, ayah: 82 },
+  { juz: 8, surah: 6, ayah: 111 },
+  { juz: 9, surah: 7, ayah: 88 },
+  { juz: 10, surah: 8, ayah: 41 },
+  { juz: 11, surah: 9, ayah: 93 },
+  { juz: 12, surah: 11, ayah: 6 },
+  { juz: 13, surah: 12, ayah: 53 },
+  { juz: 14, surah: 15, ayah: 1 },
+  { juz: 15, surah: 17, ayah: 1 },
+  { juz: 16, surah: 18, ayah: 75 },
+  { juz: 17, surah: 21, ayah: 1 },
+  { juz: 18, surah: 23, ayah: 1 },
+  { juz: 19, surah: 25, ayah: 21 },
+  { juz: 20, surah: 27, ayah: 56 },
+  { juz: 21, surah: 29, ayah: 46 },
+  { juz: 22, surah: 33, ayah: 31 },
+  { juz: 23, surah: 36, ayah: 28 },
+  { juz: 24, surah: 39, ayah: 32 },
+  { juz: 25, surah: 41, ayah: 47 },
+  { juz: 26, surah: 46, ayah: 1 },
+  { juz: 27, surah: 51, ayah: 31 },
+  { juz: 28, surah: 58, ayah: 1 },
+  { juz: 29, surah: 67, ayah: 1 },
+  { juz: 30, surah: 78, ayah: 1 },
+];
+const surahOffsets = surahs.reduce((offsets, surah, index) => {
+  const previousSurah = surahs[index - 1];
+  const previousOffset = previousSurah ? offsets[previousSurah.number] + previousSurah.ayahs : 0;
+
+  offsets[surah.number] = previousOffset;
+  return offsets;
+}, {});
+const getSurahByNumber = (surahNumber) =>
+  surahs.find((surah) => surah.number === Number(surahNumber)) || surahs[0];
+const getGlobalAyahNumber = (surahNumber, ayah) => surahOffsets[Number(surahNumber)] + Number(ayah);
+const getPreviousAyahReference = (surahNumber, ayah) => {
+  if (ayah > 1) {
+    return { surah: surahNumber, ayah: ayah - 1 };
+  }
+
+  const previousSurah = getSurahByNumber(surahNumber - 1);
+
+  return { surah: previousSurah.number, ayah: previousSurah.ayahs };
+};
+const juzIntervals = juzStarts.map((juzStart, index) => {
+  const nextJuzStart = juzStarts[index + 1];
+  const endReference = nextJuzStart
+    ? getPreviousAyahReference(nextJuzStart.surah, nextJuzStart.ayah)
+    : { surah: 114, ayah: 6 };
+
+  return {
+    juz: juzStart.juz,
+    start: getGlobalAyahNumber(juzStart.surah, juzStart.ayah),
+    end: getGlobalAyahNumber(endReference.surah, endReference.ayah),
+    startReference: juzStart,
+    endReference,
+  };
+});
+const getJuzForReference = (surahNumber, ayah) => {
+  const globalAyah = getGlobalAyahNumber(surahNumber, ayah);
+  return juzIntervals.find((interval) => globalAyah >= interval.start && globalAyah <= interval.end);
+};
+const isReferenceInMemorizedJuz = (memorizedJuzList, surahNumber, ayah) => {
+  const juz = getJuzForReference(surahNumber, ayah)?.juz;
+  return memorizedJuzList.includes(juz);
+};
+const getFirstAvailableCurrentPoint = (memorizedJuzList) => {
+  const firstAvailableJuz = juzIntervals.find((interval) => !memorizedJuzList.includes(interval.juz));
+  const fallback = firstAvailableJuz || juzIntervals[juzIntervals.length - 1];
+
+  return {
+    currentJuz: fallback.juz,
+    currentSurah: fallback.startReference.surah,
+    currentAyah: fallback.startReference.ayah,
+  };
+};
 
 export default function Login() {
   const [mode, setMode] = useState("login");
   const [signupStep, setSignupStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [signupErrors, setSignupErrors] = useState([]);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [signupForm, setSignupForm] = useState({
     name: "",
@@ -40,6 +121,52 @@ export default function Login() {
     { length: selectedCurrentSurah.ayahs },
     (_, index) => index + 1
   );
+  const isCurrentSurahFullyMemorized = (surah) =>
+    Array.from({ length: surah.ayahs }, (_, index) => index + 1).every((ayah) =>
+      isReferenceInMemorizedJuz(signupForm.memorizedJuzList, surah.number, ayah)
+    );
+  const getFirstAvailableAyahInSurah = (surahNumber) => {
+    const surah = getSurahByNumber(surahNumber);
+
+    return (
+      Array.from({ length: surah.ayahs }, (_, index) => index + 1).find(
+        (ayah) => !isReferenceInMemorizedJuz(signupForm.memorizedJuzList, surah.number, ayah)
+      ) || 1
+    );
+  };
+  const setCurrentJuz = (juz) => {
+    const juzInterval = juzIntervals.find((interval) => interval.juz === Number(juz));
+    const startReference = juzInterval?.startReference || getFirstAvailableCurrentPoint([]);
+
+    setSignupForm((currentForm) => ({
+      ...currentForm,
+      currentJuz: Number(juz),
+      currentSurah: startReference.surah,
+      currentAyah: startReference.ayah,
+    }));
+  };
+  const setCurrentSurah = (surahNumber) => {
+    const nextAyah = getFirstAvailableAyahInSurah(surahNumber);
+    const nextJuz = getJuzForReference(Number(surahNumber), nextAyah)?.juz || signupForm.currentJuz;
+
+    setSignupForm((currentForm) => ({
+      ...currentForm,
+      currentJuz: nextJuz,
+      currentSurah: Number(surahNumber),
+      currentAyah: nextAyah,
+    }));
+  };
+  const setCurrentAyah = (ayah) => {
+    const nextJuz =
+      getJuzForReference(Number(signupForm.currentSurah), Number(ayah))?.juz ||
+      signupForm.currentJuz;
+
+    setSignupForm((currentForm) => ({
+      ...currentForm,
+      currentJuz: nextJuz,
+      currentAyah: Number(ayah),
+    }));
+  };
 
   const updateLoginForm = (field, value) => {
     setLoginError("");
@@ -50,6 +177,7 @@ export default function Login() {
   };
 
   const updateSignupForm = (field, value) => {
+    setSignupErrors([]);
     setSignupForm((currentForm) => ({
       ...currentForm,
       [field]: value,
@@ -67,6 +195,13 @@ export default function Login() {
         ...currentForm,
         memorizedJuzList,
         memorizedJuzCount: memorizedJuzList.length,
+        ...(isReferenceInMemorizedJuz(
+          memorizedJuzList,
+          currentForm.currentSurah,
+          currentForm.currentAyah
+        )
+          ? getFirstAvailableCurrentPoint(memorizedJuzList)
+          : {}),
       };
     });
   };
@@ -87,18 +222,45 @@ export default function Login() {
     }
   };
 
-  const handleSignupNext = () => {
-    if (!signupForm.name || !signupForm.email || !signupForm.password) {
-      alert("Please fill out your name, email, and password.");
+  const handleSignupNext = async () => {
+    const validationErrors = [];
+
+    if (
+      !signupForm.name.trim() ||
+      !signupForm.email.trim() ||
+      !signupForm.password ||
+      !signupForm.confirmPassword
+    ) {
+      validationErrors.push("Please fill out every field.");
+    }
+
+    if (signupForm.password.length < 7) {
+      validationErrors.push("Password must be at least 7 characters.");
+    }
+
+    if (
+      signupForm.password &&
+      signupForm.confirmPassword &&
+      signupForm.password !== signupForm.confirmPassword
+    ) {
+      validationErrors.push("Passwords do not match.");
+    }
+
+    if (validationErrors.length > 0) {
+      setSignupErrors(validationErrors);
       return;
     }
 
-    if (signupForm.password !== signupForm.confirmPassword) {
-      alert("Passwords do not match.");
-      return;
-    }
+    setIsLoading(true);
 
-    setSignupStep(2);
+    try {
+      await api.post("/auth/check-email", { email: signupForm.email.trim() });
+      setSignupStep(2);
+    } catch (err) {
+      setSignupErrors([err.response?.data?.message || "Email is already in use."]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSignup = async () => {
@@ -122,7 +284,8 @@ export default function Login() {
       saveSession(res.data);
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      alert(err.response?.data?.message || "Signup failed");
+      setSignupStep(1);
+      setSignupErrors([err.response?.data?.message || "Signup failed. Please check your details."]);
     } finally {
       setIsLoading(false);
     }
@@ -262,33 +425,59 @@ export default function Login() {
                   />
                 </label>
 
-                <button type="button" onClick={handleSignupNext} style={styles.button}>
-                  Continue
+                {signupErrors.length > 0 ? (
+                  <div style={styles.notification}>
+                    {signupErrors.map((error) => (
+                      <p key={error} style={styles.notificationLine}>
+                        {error}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={handleSignupNext}
+                  disabled={isLoading}
+                  style={{
+                    ...styles.button,
+                    opacity: isLoading ? 0.7 : 1,
+                    cursor: isLoading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isLoading ? "Checking..." : "Continue"}
                 </button>
               </>
             ) : signupStep === 2 ? (
               <>
                 <label style={styles.label}>
-                  How many ajza have you memorized?
+                  How many ajzaa have you memorized?
                   <input
                     value={signupForm.memorizedJuzCount}
                     type="number"
+                    tabIndex={-1}
+                    aria-readonly="true"
                     readOnly
-                    style={styles.input}
+                    style={{ ...styles.input, ...styles.memorizedJuzCountInput }}
                   />
                 </label>
 
                 <div>
-                  <p style={styles.fieldText}>Which ajza specifically?</p>
+                  <p style={styles.fieldText}>Which ajzaa specifically?</p>
                   <div style={styles.juzGrid}>
                     {juzOptions.map((juz) => {
                       const isSelected = signupForm.memorizedJuzList.includes(juz);
 
                       return (
                         <button
+                          className={`signup-juz-button${isSelected ? " signup-juz-button-selected" : ""}`}
                           key={juz}
                           type="button"
-                          onClick={() => toggleJuz(juz)}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={(event) => {
+                            toggleJuz(juz);
+                            event.currentTarget.blur();
+                          }}
                           style={{
                             ...styles.juzButton,
                             ...(isSelected ? styles.selectedJuzButton : {}),
@@ -306,11 +495,15 @@ export default function Login() {
                     Current Juz
                     <select
                       value={signupForm.currentJuz}
-                      onChange={(e) => updateSignupForm("currentJuz", e.target.value)}
+                      onChange={(e) => setCurrentJuz(e.target.value)}
                       style={styles.input}
                     >
                       {juzOptions.map((juz) => (
-                        <option key={juz} value={juz}>
+                        <option
+                          key={juz}
+                          value={juz}
+                          disabled={signupForm.memorizedJuzList.includes(juz)}
+                        >
                           Juz {juz}
                         </option>
                       ))}
@@ -321,14 +514,15 @@ export default function Login() {
                     Current Surah
                     <select
                       value={signupForm.currentSurah}
-                      onChange={(e) => {
-                        updateSignupForm("currentSurah", Number(e.target.value));
-                        updateSignupForm("currentAyah", 1);
-                      }}
+                      onChange={(e) => setCurrentSurah(e.target.value)}
                       style={styles.input}
                     >
                       {surahs.map((surah) => (
-                        <option key={surah.number} value={surah.number}>
+                        <option
+                          key={surah.number}
+                          value={surah.number}
+                          disabled={isCurrentSurahFullyMemorized(surah)}
+                        >
                           {surah.number}. {surah.name}
                         </option>
                       ))}
@@ -339,11 +533,19 @@ export default function Login() {
                     Current Ayah
                     <select
                       value={signupForm.currentAyah}
-                      onChange={(e) => updateSignupForm("currentAyah", Number(e.target.value))}
+                      onChange={(e) => setCurrentAyah(e.target.value)}
                       style={styles.input}
                     >
                       {currentAyahOptions.map((ayah) => (
-                        <option key={ayah} value={ayah}>
+                        <option
+                          key={ayah}
+                          value={ayah}
+                          disabled={isReferenceInMemorizedJuz(
+                            signupForm.memorizedJuzList,
+                            selectedCurrentSurah.number,
+                            ayah
+                          )}
+                        >
                           {ayah}
                         </option>
                       ))}
@@ -372,57 +574,73 @@ export default function Login() {
               <>
                 <div style={styles.preferenceGrid}>
                   <label style={styles.label}>
-                    Average Sabaq
-                    <select
-                      value={signupForm.averageSabaqPages}
-                      onChange={(e) => updateSignupForm("averageSabaqPages", Number(e.target.value))}
-                      style={styles.input}
-                    >
-                      {sabaqPageOptions.map((pages) => (
-                        <option key={pages} value={pages}>
-                          {pages} {pages === 1 ? "page" : "pages"}
-                        </option>
-                      ))}
-                    </select>
+                    <span style={styles.preferenceLabelText}>Average Sabaq</span>
+                    <div style={styles.preferenceSliderRow}>
+                      <input
+                        className="lesson-preference-slider"
+                        type="range"
+                        min="0.25"
+                        max="1"
+                        step="0.25"
+                        value={signupForm.averageSabaqPages}
+                        onChange={(e) =>
+                          updateSignupForm("averageSabaqPages", Number(e.target.value))
+                        }
+                        style={styles.preferenceSlider}
+                      />
+                      <span className="preference-slider-value" style={styles.preferenceSliderValue}>
+                        {signupForm.averageSabaqPages}{" "}
+                        {signupForm.averageSabaqPages === 1 ? "page" : "pages"}
+                      </span>
+                    </div>
                   </label>
 
                   <label style={styles.label}>
-                    Average Sabaq Para
-                    <select
-                      value={signupForm.averageSabaqParaPages}
-                      onChange={(e) =>
-                        updateSignupForm("averageSabaqParaPages", Number(e.target.value))
-                      }
-                      style={styles.input}
-                    >
-                      {sabaqParaPageOptions.map((pages) => (
-                        <option key={pages} value={pages}>
-                          {pages} {pages === 1 ? "page" : "pages"}
-                        </option>
-                      ))}
-                    </select>
+                    <span style={styles.preferenceLabelText}>Average Sabaq Para</span>
+                    <div style={styles.preferenceSliderRow}>
+                      <input
+                        className="lesson-preference-slider"
+                        type="range"
+                        min="1"
+                        max="10"
+                        step="1"
+                        value={signupForm.averageSabaqParaPages}
+                        onChange={(e) =>
+                          updateSignupForm("averageSabaqParaPages", Number(e.target.value))
+                        }
+                        style={styles.preferenceSlider}
+                      />
+                      <span className="preference-slider-value" style={styles.preferenceSliderValue}>
+                        {signupForm.averageSabaqParaPages}{" "}
+                        {signupForm.averageSabaqParaPages === 1 ? "page" : "pages"}
+                      </span>
+                    </div>
                   </label>
 
                   <label style={styles.label}>
-                    Average Revision
-                    <select
-                      value={signupForm.averageRevisionJuz}
-                      onChange={(e) =>
-                        updateSignupForm("averageRevisionJuz", Number(e.target.value))
-                      }
-                      style={styles.input}
-                    >
-                      {revisionJuzOptions.map((juz) => (
-                        <option key={juz} value={juz}>
-                          {juz} {juz === 1 ? "juz" : "juz"}
-                        </option>
-                      ))}
-                    </select>
+                    <span style={styles.preferenceLabelText}>Average Revision</span>
+                    <div style={styles.preferenceSliderRow}>
+                      <input
+                        className="lesson-preference-slider"
+                        type="range"
+                        min="0.25"
+                        max="1"
+                        step="0.25"
+                        value={signupForm.averageRevisionJuz}
+                        onChange={(e) =>
+                          updateSignupForm("averageRevisionJuz", Number(e.target.value))
+                        }
+                        style={styles.preferenceSlider}
+                      />
+                      <span className="preference-slider-value" style={styles.preferenceSliderValue}>
+                        {signupForm.averageRevisionJuz} juz
+                      </span>
+                    </div>
                   </label>
                 </div>
 
                 <p style={styles.helperText}>
-                  These will be used to preselect your ideal lesson ranges each day.
+                  These will be used to determine your ideal lesson ranges for the day, they do not affect your progress. You can always change them later.
                 </p>
 
                 <div style={styles.actionRow}>
@@ -581,6 +799,9 @@ const styles = {
     fontWeight: 750,
     lineHeight: 1.4,
   },
+  notificationLine: {
+    margin: 0,
+  },
   fieldText: {
     color: "#5b7067",
     fontSize: 13,
@@ -602,6 +823,18 @@ const styles = {
     borderRadius: 7,
     padding: "9px 11px",
     outlineColor: "#65a985",
+  },
+  memorizedJuzCountInput: {
+    width: 72,
+    minHeight: 40,
+    justifySelf: "start",
+    textAlign: "center",
+    pointerEvents: "none",
+    userSelect: "none",
+    color: "#1f7a55",
+    background: "#edf7f1",
+    borderColor: "#d8ecdf",
+    fontWeight: 850,
   },
   juzGrid: {
     display: "grid",
@@ -629,7 +862,32 @@ const styles = {
   },
   preferenceGrid: {
     display: "grid",
-    gap: 12,
+    gap: 18,
+  },
+  preferenceLabelText: {
+    display: "block",
+    textAlign: "center",
+  },
+  preferenceSliderRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 86px",
+    alignItems: "center",
+    gap: 13,
+    minHeight: 40,
+  },
+  preferenceSlider: {
+    width: "100%",
+  },
+  preferenceSliderValue: {
+    color: "#1f7a55",
+    background: "#edf7f1",
+    border: "1px solid #d8ecdf",
+    borderRadius: 7,
+    padding: "7px 9px",
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: 850,
+    whiteSpace: "nowrap",
   },
   actionRow: {
     display: "grid",

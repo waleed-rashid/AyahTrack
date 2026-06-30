@@ -5,6 +5,24 @@ import { prisma } from "../prisma";
 
 const router = express.Router();
 
+router.post("/check-email", async (req, res) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (existing) {
+    return res.status(409).json({ message: "Email is already in use." });
+  }
+
+  res.json({ available: true });
+});
+
 // SIGNUP
 router.post("/signup", async (req, res) => {
   const {

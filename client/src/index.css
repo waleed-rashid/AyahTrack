@@ -44,9 +44,28 @@ button:focus:not(:focus-visible) {
 }
 
 .entry-toggle-button,
-.top-icon-button {
+.top-icon-button,
+.signup-juz-button {
   appearance: none;
   outline: 0 !important;
+}
+
+.signup-juz-button,
+.signup-juz-button:focus,
+.signup-juz-button:active,
+.signup-juz-button:focus-visible {
+  border-color: #d8e3dc !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+.signup-juz-button-selected,
+.signup-juz-button-selected:focus,
+.signup-juz-button-selected:active,
+.signup-juz-button-selected:focus-visible {
+  border-color: #1b6f4d !important;
+  outline: 0 !important;
+  box-shadow: none !important;
 }
 
 .entry-toggle-button,
