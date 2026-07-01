@@ -651,6 +651,8 @@ export default function Dashboard() {
     { count: 1, label: "1/3" },
     { count: 0, label: "0/3" },
   ];
+  const formatWeeklyDay = (date) =>
+    new Date(date).toLocaleDateString("en-US", { weekday: "short" });
   const achievementBadges = getAchievementBadges(data);
   /*
   const achievementStats = data.achievementStats || {};
@@ -787,21 +789,21 @@ export default function Dashboard() {
               <h2 style={styles.panelTitle}>Progress Overview 📝</h2>
 
               <div style={styles.progressList}>
-                <div style={styles.progressItem}>
+                <div className="progress-overview-divider" style={styles.progressItem}>
                   <span style={styles.progressLabel}>Ajzaa Memorized</span>
                   <strong className="dashboard-soft-green dashboard-green-text" style={styles.progressValue}>
                     {progress.juz || 0}
                   </strong>
                 </div>
 
-                <div style={styles.progressItem}>
+                <div className="progress-overview-divider" style={styles.progressItem}>
                   <span style={styles.progressLabel}>Surahs Memorized</span>
                   <strong className="dashboard-soft-green dashboard-green-text" style={styles.progressValue}>
                     {progress.surahs || 0}
                   </strong>
                 </div>
 
-                <div style={styles.progressItem}>
+                <div className="progress-overview-divider" style={styles.progressItem}>
                   <span style={styles.progressLabel}>Current Ayah</span>
                   <strong className="dashboard-soft-green dashboard-green-text" style={styles.progressTextValue}>
                     {currentProgressText}
@@ -854,18 +856,22 @@ export default function Dashboard() {
               <div style={styles.weeklyGrid}>
                 {weeklyActivity.map((day) => (
                   <div key={day.date} style={styles.weeklyDay}>
-                    <span style={styles.weeklyDate}>{formatEntryDate(day.date).slice(0, 5)}</span>
+                    <span style={styles.weeklyDate}>{formatWeeklyDay(day.date)}</span>
                     <span
                       className={
-                        day.completedCount === 3
+                        day.isFuture
+                          ? "weekly-activity-box weekly-future-box"
+                          : day.completedCount === 3
                           ? "weekly-activity-box dashboard-green-bg"
                           : "weekly-activity-box"
                       }
                       title={`${day.completedCount}/3 completed`}
                       style={{
                         ...styles.weeklyBox,
-                        background:
-                          weeklyActivityColors[day.completedCount] || weeklyActivityColors[0],
+                        ...(day.isFuture ? styles.futureWeeklyBox : {}),
+                        background: day.isFuture
+                          ? styles.futureWeeklyBox.background
+                          : weeklyActivityColors[day.completedCount] || weeklyActivityColors[0],
                       }}
                     />
                   </div>
@@ -1591,6 +1597,11 @@ const styles = {
     borderRadius: 5,
     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3)",
   },
+  futureWeeklyBox: {
+    background: "#ffffff",
+    border: "1px solid #17201b",
+    boxShadow: "none",
+  },
   weeklyLegend: {
     display: "grid",
     gridTemplateColumns: "repeat(4, auto)",
@@ -1651,7 +1662,6 @@ const styles = {
   },
   currentJuzItem: {
     padding: "13px 0",
-    borderBottom: "1px solid #edf2ee",
   },
   currentJuzHeader: {
     display: "flex",

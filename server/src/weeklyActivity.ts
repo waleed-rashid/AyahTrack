@@ -38,15 +38,15 @@ export const calculateWeeklyActivity = (
 
   const today = new Date(todayValue);
   today.setHours(0, 0, 0, 0);
-  const startDate = startDateValue ? new Date(startDateValue) : null;
-  startDate?.setHours(0, 0, 0, 0);
-
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
   return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() - (6 - index));
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
 
     const dayKey = toDayKey(date);
     const activity = activityByDay.get(dayKey);
+    const isFuture = date.getTime() > today.getTime();
     const completedCount = activity
       ? [activity.sabaq, activity.sabaqPara, activity.manzil].filter(Boolean).length
       : 0;
@@ -54,6 +54,7 @@ export const calculateWeeklyActivity = (
     return {
       date: dayKey,
       completedCount,
+      isFuture,
     };
-  }).filter((day) => !startDate || new Date(day.date).getTime() >= startDate.getTime());
+  });
 };

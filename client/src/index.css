@@ -255,6 +255,10 @@ h3 {
   border-top-color: rgba(231, 241, 235, 0.28) !important;
 }
 
+.dashboard-dark .progress-overview-divider {
+  border-bottom-color: rgba(231, 241, 235, 0.28) !important;
+}
+
 .dashboard-dark input,
 .dashboard-dark select,
 .dashboard-dark textarea {
@@ -383,6 +387,12 @@ h3 {
 
 .dashboard-dark .streak-notice-toast {
   color: #77d5a6 !important;
+}
+
+.dashboard-dark .weekly-future-box {
+  background: #ffffff !important;
+  border-color: #000000 !important;
+  box-shadow: none !important;
 }
 
 .dashboard-dark [style*="#c94a3d"] {
