@@ -5,6 +5,7 @@ import authRoutes from "./routes/auth";
 import { authMiddleware } from "./middleware/auth";
 import entryRoutes from "./routes/entry";
 import dashboardRoutes from "./routes/dashboard";
+import deviceRoutes from "./routes/device";
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/entries", entryRoutes);
 app.use("/dashboard", dashboardRoutes);
+app.use("/device", deviceRoutes);
 
 // public route
 app.get("/", (req, res) => {

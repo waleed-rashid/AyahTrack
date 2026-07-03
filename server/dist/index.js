@@ -10,6 +10,7 @@ const auth_1 = __importDefault(require("./routes/auth"));
 const auth_2 = require("./middleware/auth");
 const entry_1 = __importDefault(require("./routes/entry"));
 const dashboard_1 = __importDefault(require("./routes/dashboard"));
+const device_1 = __importDefault(require("./routes/device"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
@@ -18,6 +19,7 @@ app.use(express_1.default.json());
 app.use("/auth", auth_1.default);
 app.use("/entries", entry_1.default);
 app.use("/dashboard", dashboard_1.default);
+app.use("/device", device_1.default);
 // public route
 app.get("/", (req, res) => {
     res.json({ message: "Hifz Tracker API running 🚀" });

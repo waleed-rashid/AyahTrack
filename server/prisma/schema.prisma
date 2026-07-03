@@ -13,6 +13,7 @@ model User {
   name          String
   email         String   @unique
   passwordHash  String
+  deviceToken   String   @unique @default(uuid())
 
   streak        Int      @default(0)
   longestStreak Int      @default(0)
@@ -31,6 +32,7 @@ model User {
   lastEntryDate DateTime?
 
   entries       DailyEntry[]
+  deviceSessions DeviceSession[]
 }
 
 model DailyEntry {
@@ -45,6 +47,18 @@ model DailyEntry {
   sabaqParaSaved Boolean @default(false)
   manzilSaved    Boolean @default(false)
   notes     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DeviceSession {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  date      DateTime @default(now())
+
+  sabaqSeconds     Int @default(0)
+  sabaqParaSeconds Int @default(0)
+  revisionSeconds  Int @default(0)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

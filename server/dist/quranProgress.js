@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getLatestSabaqRange = exports.calculateCompletedSurahs = exports.calculateCompletedJuz = exports.parseMemorizedJuzList = exports.getJuzProgressPercent = exports.getJuzForAyahReference = exports.normalizeCoverageRange = exports.parseCoverageRange = void 0;
-const surahs = [
+exports.createIdealLessonCoverage = exports.formatCoverageRange = exports.getLatestSabaqRange = exports.calculateCompletedSurahs = exports.calculateCompletedJuz = exports.parseMemorizedJuzList = exports.getJuzProgressPercent = exports.getJuzForAyahReference = exports.normalizeCoverageRange = exports.parseCoverageRange = exports.surahs = void 0;
+exports.surahs = [
     { number: 1, name: "Al-Fatihah", ayahs: 7 },
     { number: 2, name: "Al-Baqarah", ayahs: 286 },
     { number: 3, name: "Ali 'Imran", ayahs: 200 },
@@ -149,14 +149,14 @@ const juzStarts = [
     { juz: 29, surah: 67, ayah: 1 },
     { juz: 30, surah: 78, ayah: 1 },
 ];
-const surahOffsets = surahs.reduce((offsets, surah, index) => {
-    const previousSurah = surahs[index - 1];
+const surahOffsets = exports.surahs.reduce((offsets, surah, index) => {
+    const previousSurah = exports.surahs[index - 1];
     const previousOffset = previousSurah ? offsets[previousSurah.number] + previousSurah.ayahs : 0;
     offsets[surah.number] = previousOffset;
     return offsets;
 }, {});
-const getSurahByNumber = (surahNumber) => surahs.find((surah) => surah.number === surahNumber);
-const getSurahByName = (surahName) => surahs.find((surah) => surah.name.toLowerCase() === surahName.toLowerCase());
+const getSurahByNumber = (surahNumber) => exports.surahs.find((surah) => surah.number === surahNumber);
+const getSurahByName = (surahName) => exports.surahs.find((surah) => surah.name.toLowerCase() === surahName.toLowerCase());
 const getGlobalAyahNumber = (surahNumber, ayah) => surahOffsets[surahNumber] + ayah;
 const getPreviousAyahReference = (surahNumber, ayah) => {
     if (ayah > 1) {
@@ -322,7 +322,7 @@ const calculateCompletedSurahs = (entries, currentSabaqRange) => {
         intervals.push(rangeToInterval(currentSabaqRange));
     }
     const mergedIntervals = mergeIntervals(intervals);
-    return surahs.filter((surah) => {
+    return exports.surahs.filter((surah) => {
         const surahStart = getGlobalAyahNumber(surah.number, 1);
         const surahEnd = getGlobalAyahNumber(surah.number, surah.ayahs);
         return mergedIntervals.some((coverageInterval) => coverageInterval.start <= surahStart && coverageInterval.end >= surahEnd);
@@ -334,3 +334,175 @@ const getLatestSabaqRange = (entries) => {
     return latestEntry ? (0, exports.parseCoverageRange)(latestEntry.sabaq) : null;
 };
 exports.getLatestSabaqRange = getLatestSabaqRange;
+const defaultLessonPreferences = {
+    averageSabaqPages: 0.5,
+    averageSabaqParaPages: 3,
+    averageRevisionJuz: 0.25,
+};
+const formatCoverageRange = (range) => {
+    const startSurah = getSurahByNumber(range.startSurahNumber);
+    const endSurah = getSurahByNumber(range.endSurahNumber);
+    if (!startSurah || !endSurah) {
+        return "";
+    }
+    if (startSurah.number === endSurah.number) {
+        return `${startSurah.name} ${range.startAyah} - ${range.endAyah}`;
+    }
+    return `${startSurah.name} ${range.startAyah} - ${endSurah.name} ${range.endAyah}`;
+};
+exports.formatCoverageRange = formatCoverageRange;
+const getReferenceFromGlobalAyahNumber = (globalAyahNumber) => {
+    const quranAyahCount = exports.surahs.reduce((total, surah) => total + surah.ayahs, 0);
+    const clampedGlobalAyahNumber = Math.min(quranAyahCount, Math.max(1, globalAyahNumber));
+    const surah = [...exports.surahs]
+        .reverse()
+        .find((candidate) => surahOffsets[candidate.number] < clampedGlobalAyahNumber);
+    if (!surah) {
+        return { surahNumber: 1, ayah: 1 };
+    }
+    return {
+        surahNumber: surah.number,
+        ayah: clampedGlobalAyahNumber - surahOffsets[surah.number],
+    };
+};
+const createNextCoverageRange = (coverageText) => {
+    const parsedCoverage = coverageText ? (0, exports.parseCoverageRange)(coverageText) : null;
+    if (!parsedCoverage) {
+        return null;
+    }
+    const endSurah = getSurahByNumber(parsedCoverage.endSurahNumber);
+    if (!endSurah) {
+        return null;
+    }
+    const nextSurahNumber = parsedCoverage.endAyah >= endSurah.ayahs
+        ? Math.min(parsedCoverage.endSurahNumber + 1, exports.surahs[exports.surahs.length - 1].number)
+        : parsedCoverage.endSurahNumber;
+    const nextSurah = getSurahByNumber(nextSurahNumber);
+    const nextAyah = parsedCoverage.endAyah >= endSurah.ayahs ? 1 : parsedCoverage.endAyah + 1;
+    if (!nextSurah) {
+        return null;
+    }
+    return {
+        startSurahNumber: nextSurah.number,
+        startAyah: nextAyah,
+        endSurahNumber: nextSurah.number,
+        endAyah: nextAyah,
+    };
+};
+const createDefaultCoverage = () => ({
+    sabaq: { startSurahNumber: 1, startAyah: 1, endSurahNumber: 1, endAyah: 7 },
+    sabaqPara: { startSurahNumber: 1, startAyah: 1, endSurahNumber: 1, endAyah: 7 },
+    revision: { startSurahNumber: 1, startAyah: 1, endSurahNumber: 1, endAyah: 7 },
+});
+const createNextCoverageFromLatest = (latestCoverage) => ({
+    ...createDefaultCoverage(),
+    ...(createNextCoverageRange(latestCoverage.sabaq)
+        ? { sabaq: createNextCoverageRange(latestCoverage.sabaq) }
+        : {}),
+    ...(createNextCoverageRange(latestCoverage.sabaqPara)
+        ? { sabaqPara: createNextCoverageRange(latestCoverage.sabaqPara) }
+        : {}),
+    ...(createNextCoverageRange(latestCoverage.manzil)
+        ? { revision: createNextCoverageRange(latestCoverage.manzil) }
+        : {}),
+});
+const expandCoverageByAyahCount = (coverage, ayahCount) => {
+    const startGlobalAyah = getGlobalAyahNumber(coverage.startSurahNumber, coverage.startAyah);
+    const endReference = getReferenceFromGlobalAyahNumber(startGlobalAyah + Math.max(1, Math.round(ayahCount)) - 1);
+    return {
+        ...coverage,
+        endSurahNumber: endReference.surahNumber,
+        endAyah: endReference.ayah,
+    };
+};
+const expandCoverageByPages = (coverage, pages) => {
+    const globalAyahNumber = getGlobalAyahNumber(coverage.startSurahNumber, coverage.startAyah);
+    const juzInterval = getJuzIntervals().find((interval) => globalAyahNumber >= interval.start && globalAyahNumber <= interval.end);
+    const ayahsPerPage = juzInterval ? (juzInterval.end - juzInterval.start + 1) / 20 : 10;
+    return expandCoverageByAyahCount(coverage, Number(pages) * ayahsPerPage);
+};
+const expandCoverageByJuz = (coverage, juzAmount) => {
+    const globalAyahNumber = getGlobalAyahNumber(coverage.startSurahNumber, coverage.startAyah);
+    const juzInterval = getJuzIntervals().find((interval) => globalAyahNumber >= interval.start && globalAyahNumber <= interval.end);
+    const ayahsPerJuz = juzInterval ? juzInterval.end - juzInterval.start + 1 : 200;
+    return expandCoverageByAyahCount(coverage, Number(juzAmount) * ayahsPerJuz);
+};
+const buildSabaqCoverageMap = (sabaqEntries, memorizedJuz) => {
+    const coverageMap = exports.surahs.reduce((map, surah) => {
+        map[surah.number] = new Set();
+        return map;
+    }, {});
+    const memorizedJuzSet = new Set((memorizedJuz || []).map(Number));
+    getJuzIntervals()
+        .filter((interval) => memorizedJuzSet.has(interval.juz))
+        .forEach((interval) => {
+        for (let globalAyah = interval.start; globalAyah <= interval.end; globalAyah += 1) {
+            const reference = getReferenceFromGlobalAyahNumber(globalAyah);
+            coverageMap[reference.surahNumber].add(reference.ayah);
+        }
+    });
+    sabaqEntries.forEach((entry) => {
+        const parsedCoverage = (0, exports.parseCoverageRange)(entry.sabaq);
+        if (!parsedCoverage) {
+            return;
+        }
+        for (let surahNumber = parsedCoverage.startSurahNumber; surahNumber <= parsedCoverage.endSurahNumber; surahNumber += 1) {
+            const surah = getSurahByNumber(surahNumber);
+            if (!surah) {
+                continue;
+            }
+            const firstAyah = surahNumber === parsedCoverage.startSurahNumber ? parsedCoverage.startAyah : 1;
+            const lastAyah = surahNumber === parsedCoverage.endSurahNumber ? parsedCoverage.endAyah : surah.ayahs;
+            for (let ayah = firstAyah; ayah <= lastAyah; ayah += 1) {
+                coverageMap[surahNumber].add(ayah);
+            }
+        }
+    });
+    return coverageMap;
+};
+const findNextAvailableSabaqReference = (coverageMap, preferredCoverage) => {
+    const preferredSurahNumber = preferredCoverage?.startSurahNumber || 1;
+    const preferredAyah = preferredCoverage?.startAyah || 1;
+    for (const surah of exports.surahs) {
+        if (surah.number < preferredSurahNumber) {
+            continue;
+        }
+        const firstAyah = surah.number === preferredSurahNumber ? preferredAyah : 1;
+        const coveredAyahs = coverageMap[surah.number] || new Set();
+        for (let ayah = firstAyah; ayah <= surah.ayahs; ayah += 1) {
+            if (!coveredAyahs.has(ayah)) {
+                return { surahNumber: surah.number, ayah };
+            }
+        }
+    }
+    return null;
+};
+const createNextSabaqCoverage = (coverageMap, preferredCoverage) => {
+    const nextReference = findNextAvailableSabaqReference(coverageMap, preferredCoverage);
+    if (!nextReference) {
+        return null;
+    }
+    return {
+        startSurahNumber: nextReference.surahNumber,
+        startAyah: nextReference.ayah,
+        endSurahNumber: nextReference.surahNumber,
+        endAyah: nextReference.ayah,
+    };
+};
+const createIdealLessonCoverage = ({ latestCoverage, sabaqEntries, memorizedJuz, lessonPreferences, }) => {
+    const preferences = {
+        ...defaultLessonPreferences,
+        ...lessonPreferences,
+    };
+    const nextCoverage = createNextCoverageFromLatest(latestCoverage);
+    const sabaqCoverageMap = buildSabaqCoverageMap(sabaqEntries, memorizedJuz);
+    const nextSabaqCoverage = createNextSabaqCoverage(sabaqCoverageMap, nextCoverage.sabaq);
+    return {
+        sabaq: nextSabaqCoverage
+            ? expandCoverageByPages(nextSabaqCoverage, preferences.averageSabaqPages)
+            : nextCoverage.sabaq,
+        sabaqPara: expandCoverageByPages(nextCoverage.sabaqPara, preferences.averageSabaqParaPages),
+        revision: expandCoverageByJuz(nextCoverage.revision, preferences.averageRevisionJuz),
+    };
+};
+exports.createIdealLessonCoverage = createIdealLessonCoverage;
