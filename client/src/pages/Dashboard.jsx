@@ -173,6 +173,42 @@ const getAchievementBadges = (dashboardData = {}) => {
   ];
 };
 
+const formatSessionDuration = (seconds = 0) => {
+  const totalSeconds = Math.max(0, Math.round(Number(seconds) || 0));
+
+  if (totalSeconds <= 0) {
+    return "";
+  }
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  return `${remainingSeconds}s`;
+};
+
+const renderSessionDuration = (seconds) => {
+  const duration = formatSessionDuration(seconds);
+
+  if (!duration) {
+    return null;
+  }
+
+  return (
+    <span className="entry-duration-chip" style={styles.entryDuration}>
+      {duration}
+    </span>
+  );
+};
+
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [coverage, setCoverage] = useState(createDefaultCoverage);
@@ -453,8 +489,8 @@ export default function Dashboard() {
         : [];
       const currentRecentEntries = Array.isArray(data.recentEntries) ? data.recentEntries : [];
       const nextRecentEntries = [
-        savedEntry.entry,
         ...returnedRecentEntries,
+        savedEntry.entry,
         ...currentRecentEntries,
       ]
         .filter(
@@ -1115,16 +1151,19 @@ export default function Dashboard() {
                   {hasSavedCoverage(entry.sabaq, entry.sabaqSaved) ? (
                     <p style={styles.entryLine}>
                       <b>Sabaq:</b> {formatRecentCoverage(entry.sabaq)}
+                      {renderSessionDuration(entry.deviceSession?.sabaqSeconds)}
                     </p>
                   ) : null}
                   {hasSavedCoverage(entry.sabaqPara, entry.sabaqParaSaved) ? (
                     <p style={styles.entryLine}>
                       <b>Sabaq Para:</b> {formatRecentCoverage(entry.sabaqPara)}
+                      {renderSessionDuration(entry.deviceSession?.sabaqParaSeconds)}
                     </p>
                   ) : null}
                   {hasSavedCoverage(entry.manzil, entry.manzilSaved) ? (
                     <p style={styles.entryLine}>
                       <b>Revision:</b> {formatRecentCoverage(entry.manzil)}
+                      {renderSessionDuration(entry.deviceSession?.revisionSeconds)}
                     </p>
                   ) : null}
                   {entry.notes?.trim() ? (
@@ -1819,6 +1858,20 @@ const styles = {
     fontSize: 13,
     lineHeight: 1.45,
     marginTop: 4,
+  },
+  entryDuration: {
+    display: "inline-flex",
+    alignItems: "center",
+    color: "#1f7a55",
+    background: "#edf7f1",
+    border: "1px solid #d8ecdf",
+    borderRadius: 999,
+    padding: "1px 7px",
+    marginLeft: 7,
+    fontSize: 11,
+    fontWeight: 850,
+    lineHeight: 1.4,
+    whiteSpace: "nowrap",
   },
   entryNote: {
     color: "#40534b",

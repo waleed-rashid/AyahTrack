@@ -10,6 +10,7 @@ const quranProgress_1 = require("../quranProgress");
 const streaks_1 = require("../streaks");
 const weeklyActivity_1 = require("../weeklyActivity");
 const achievements_1 = require("../achievements");
+const deviceSessions_1 = require("../deviceSessions");
 const router = express_1.default.Router();
 // GET DASHBOARD DATA
 router.get("/", auth_1.authMiddleware, async (req, res) => {
@@ -46,6 +47,11 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
         where: { userId: req.userId },
         orderBy: [{ date: "desc" }, { id: "desc" }],
         take: 7,
+    });
+    const recentEntriesWithSessions = await (0, deviceSessions_1.attachDeviceSessionSummaries)({
+        prisma: prisma_1.prisma,
+        userId: req.userId,
+        entries: recentEntries,
     });
     const allEntries = await prisma_1.prisma.dailyEntry.findMany({
         where: { userId: req.userId },
@@ -144,7 +150,7 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
             .map((entry) => ({ sabaq: entry.sabaq })),
         latestCoverage,
         todayEntry: todayEntry || null,
-        recentEntries,
+        recentEntries: recentEntriesWithSessions,
     });
 });
 router.patch("/lesson-preferences", auth_1.authMiddleware, async (req, res) => {

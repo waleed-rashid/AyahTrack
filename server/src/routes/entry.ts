@@ -13,6 +13,7 @@ import {
 import { calculateStreakStats } from "../streaks";
 import { calculateWeeklyActivity } from "../weeklyActivity";
 import { calculateAchievementStats } from "../achievements";
+import { attachDeviceSessionSummaries } from "../deviceSessions";
 
 const router = express.Router();
 
@@ -91,6 +92,11 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
     where: { userId: req.userId },
     orderBy: [{ date: "desc" }, { id: "desc" }],
     take: 7,
+  });
+  const recentEntriesWithSessions = await attachDeviceSessionSummaries({
+    prisma,
+    userId: req.userId,
+    entries: recentEntries,
   });
 
   const entries = await prisma.dailyEntry.findMany({
@@ -179,7 +185,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
       pages: 0,
       surahs: memorizedSurahs,
     },
-    recentEntries,
+    recentEntries: recentEntriesWithSessions,
   });
 });
 

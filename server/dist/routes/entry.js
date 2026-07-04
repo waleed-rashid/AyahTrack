@@ -10,6 +10,7 @@ const quranProgress_1 = require("../quranProgress");
 const streaks_1 = require("../streaks");
 const weeklyActivity_1 = require("../weeklyActivity");
 const achievements_1 = require("../achievements");
+const deviceSessions_1 = require("../deviceSessions");
 const router = express_1.default.Router();
 // CREATE DAILY ENTRY
 router.post("/", auth_1.authMiddleware, async (req, res) => {
@@ -77,6 +78,11 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
         where: { userId: req.userId },
         orderBy: [{ date: "desc" }, { id: "desc" }],
         take: 7,
+    });
+    const recentEntriesWithSessions = await (0, deviceSessions_1.attachDeviceSessionSummaries)({
+        prisma: prisma_1.prisma,
+        userId: req.userId,
+        entries: recentEntries,
     });
     const entries = await prisma_1.prisma.dailyEntry.findMany({
         where: { userId: req.userId },
@@ -150,7 +156,7 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
             pages: 0,
             surahs: memorizedSurahs,
         },
-        recentEntries,
+        recentEntries: recentEntriesWithSessions,
     });
 });
 // DELETE ENTRY

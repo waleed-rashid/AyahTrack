@@ -255,6 +255,12 @@ h3 {
   border-top-color: rgba(231, 241, 235, 0.28) !important;
 }
 
+.dashboard-dark .entry-duration-chip {
+  color: #77d5a6 !important;
+  background: #173327 !important;
+  border-color: #285b45 !important;
+}
+
 .dashboard-dark .progress-overview-divider {
   border-bottom-color: rgba(231, 241, 235, 0.28) !important;
 }
