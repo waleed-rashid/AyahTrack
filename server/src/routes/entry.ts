@@ -4,6 +4,7 @@ import { AuthRequest, authMiddleware } from "../middleware/auth";
 import {
   calculateCompletedJuz,
   calculateCompletedSurahs,
+  createIdealLessonCoverage,
   getJuzForAyahReference,
   getJuzProgressPercent,
   normalizeCoverageRange,
@@ -146,6 +147,19 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
     { sabaq: "", sabaqPara: "", manzil: "" }
   );
   const achievementStats = calculateAchievementStats(entries, user.onboardingMemorizedJuzList);
+  const sabaqEntries = entries
+    .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
+    .map((entry) => ({ sabaq: entry.sabaq }));
+  const idealCoverage = createIdealLessonCoverage({
+    latestCoverage,
+    sabaqEntries,
+    memorizedJuz,
+    lessonPreferences: {
+      averageSabaqPages: user.averageSabaqPages,
+      averageSabaqParaPages: user.averageSabaqParaPages,
+      averageRevisionJuz: user.averageRevisionJuz,
+    },
+  });
 
   await prisma.user.update({
     where: { id: user.id },
@@ -171,10 +185,9 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
     longestStreakRange: streakStats.longestStreakRange,
     weeklyActivity,
     achievementStats,
-    sabaqEntries: entries
-      .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
-      .map((entry) => ({ sabaq: entry.sabaq })),
+    sabaqEntries,
     latestCoverage,
+    idealCoverage,
     progress: {
       juz: memorizedJuz.length,
       memorizedJuz,

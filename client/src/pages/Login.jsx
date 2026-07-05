@@ -6,6 +6,13 @@ import hifzLogo from "../assets/hifz-logo.png";
 import { surahs } from "../data/surahs";
 
 const juzOptions = Array.from({ length: 30 }, (_, index) => index + 1);
+const formatRevisionPreference = (juzAmount = 0) => {
+  const numericJuzAmount = Number(juzAmount) || 0;
+  const pages = numericJuzAmount * 20;
+  const pageLabel = pages === 1 ? "page" : "pages";
+
+  return `${numericJuzAmount} juz (${pages} ${pageLabel})`;
+};
 const juzStarts = [
   { juz: 1, surah: 1, ayah: 1 },
   { juz: 2, surah: 2, ayah: 142 },
@@ -647,7 +654,7 @@ export default function Login() {
                         style={styles.preferenceSlider}
                       />
                       <span className="preference-slider-value" style={styles.preferenceSliderValue}>
-                        {signupForm.averageRevisionJuz} juz
+                        {formatRevisionPreference(signupForm.averageRevisionJuz)}
                       </span>
                     </div>
                   </label>
@@ -884,7 +891,7 @@ const styles = {
   },
   preferenceSliderRow: {
     display: "grid",
-    gridTemplateColumns: "1fr 86px",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(132px, auto)",
     alignItems: "center",
     gap: 13,
     minHeight: 40,
@@ -899,7 +906,7 @@ const styles = {
     borderRadius: 7,
     padding: "7px 9px",
     textAlign: "center",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 850,
     whiteSpace: "nowrap",
   },

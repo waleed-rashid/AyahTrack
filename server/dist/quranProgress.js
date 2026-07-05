@@ -1,154 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createIdealLessonCoverage = exports.formatCoverageRange = exports.getLatestSabaqRange = exports.calculateCompletedSurahs = exports.calculateCompletedJuz = exports.parseMemorizedJuzList = exports.getJuzProgressPercent = exports.getJuzForAyahReference = exports.normalizeCoverageRange = exports.parseCoverageRange = exports.surahs = void 0;
-exports.surahs = [
-    { number: 1, name: "Al-Fatihah", ayahs: 7 },
-    { number: 2, name: "Al-Baqarah", ayahs: 286 },
-    { number: 3, name: "Ali 'Imran", ayahs: 200 },
-    { number: 4, name: "An-Nisa", ayahs: 176 },
-    { number: 5, name: "Al-Ma'idah", ayahs: 120 },
-    { number: 6, name: "Al-An'am", ayahs: 165 },
-    { number: 7, name: "Al-A'raf", ayahs: 206 },
-    { number: 8, name: "Al-Anfal", ayahs: 75 },
-    { number: 9, name: "At-Tawbah", ayahs: 129 },
-    { number: 10, name: "Yunus", ayahs: 109 },
-    { number: 11, name: "Hud", ayahs: 123 },
-    { number: 12, name: "Yusuf", ayahs: 111 },
-    { number: 13, name: "Ar-Ra'd", ayahs: 43 },
-    { number: 14, name: "Ibrahim", ayahs: 52 },
-    { number: 15, name: "Al-Hijr", ayahs: 99 },
-    { number: 16, name: "An-Nahl", ayahs: 128 },
-    { number: 17, name: "Al-Isra", ayahs: 111 },
-    { number: 18, name: "Al-Kahf", ayahs: 110 },
-    { number: 19, name: "Maryam", ayahs: 98 },
-    { number: 20, name: "Taha", ayahs: 135 },
-    { number: 21, name: "Al-Anbya", ayahs: 112 },
-    { number: 22, name: "Al-Hajj", ayahs: 78 },
-    { number: 23, name: "Al-Mu'minun", ayahs: 118 },
-    { number: 24, name: "An-Nur", ayahs: 64 },
-    { number: 25, name: "Al-Furqan", ayahs: 77 },
-    { number: 26, name: "Ash-Shu'ara", ayahs: 227 },
-    { number: 27, name: "An-Naml", ayahs: 93 },
-    { number: 28, name: "Al-Qasas", ayahs: 88 },
-    { number: 29, name: "Al-'Ankabut", ayahs: 69 },
-    { number: 30, name: "Ar-Rum", ayahs: 60 },
-    { number: 31, name: "Luqman", ayahs: 34 },
-    { number: 32, name: "As-Sajdah", ayahs: 30 },
-    { number: 33, name: "Al-Ahzab", ayahs: 73 },
-    { number: 34, name: "Saba", ayahs: 54 },
-    { number: 35, name: "Fatir", ayahs: 45 },
-    { number: 36, name: "Ya-Sin", ayahs: 83 },
-    { number: 37, name: "As-Saffat", ayahs: 182 },
-    { number: 38, name: "Sad", ayahs: 88 },
-    { number: 39, name: "Az-Zumar", ayahs: 75 },
-    { number: 40, name: "Ghafir", ayahs: 85 },
-    { number: 41, name: "Fussilat", ayahs: 54 },
-    { number: 42, name: "Ash-Shuraa", ayahs: 53 },
-    { number: 43, name: "Az-Zukhruf", ayahs: 89 },
-    { number: 44, name: "Ad-Dukhan", ayahs: 59 },
-    { number: 45, name: "Al-Jathiyah", ayahs: 37 },
-    { number: 46, name: "Al-Ahqaf", ayahs: 35 },
-    { number: 47, name: "Muhammad", ayahs: 38 },
-    { number: 48, name: "Al-Fath", ayahs: 29 },
-    { number: 49, name: "Al-Hujurat", ayahs: 18 },
-    { number: 50, name: "Qaf", ayahs: 45 },
-    { number: 51, name: "Adh-Dhariyat", ayahs: 60 },
-    { number: 52, name: "At-Tur", ayahs: 49 },
-    { number: 53, name: "An-Najm", ayahs: 62 },
-    { number: 54, name: "Al-Qamar", ayahs: 55 },
-    { number: 55, name: "Ar-Rahman", ayahs: 78 },
-    { number: 56, name: "Al-Waqi'ah", ayahs: 96 },
-    { number: 57, name: "Al-Hadid", ayahs: 29 },
-    { number: 58, name: "Al-Mujadilah", ayahs: 22 },
-    { number: 59, name: "Al-Hashr", ayahs: 24 },
-    { number: 60, name: "Al-Mumtahanah", ayahs: 13 },
-    { number: 61, name: "As-Saff", ayahs: 14 },
-    { number: 62, name: "Al-Jumu'ah", ayahs: 11 },
-    { number: 63, name: "Al-Munafiqun", ayahs: 11 },
-    { number: 64, name: "At-Taghabun", ayahs: 18 },
-    { number: 65, name: "At-Talaq", ayahs: 12 },
-    { number: 66, name: "At-Tahrim", ayahs: 12 },
-    { number: 67, name: "Al-Mulk", ayahs: 30 },
-    { number: 68, name: "Al-Qalam", ayahs: 52 },
-    { number: 69, name: "Al-Haqqah", ayahs: 52 },
-    { number: 70, name: "Al-Ma'arij", ayahs: 44 },
-    { number: 71, name: "Nuh", ayahs: 28 },
-    { number: 72, name: "Al-Jinn", ayahs: 28 },
-    { number: 73, name: "Al-Muzzammil", ayahs: 20 },
-    { number: 74, name: "Al-Muddaththir", ayahs: 56 },
-    { number: 75, name: "Al-Qiyamah", ayahs: 40 },
-    { number: 76, name: "Al-Insan", ayahs: 31 },
-    { number: 77, name: "Al-Mursalat", ayahs: 50 },
-    { number: 78, name: "An-Naba", ayahs: 40 },
-    { number: 79, name: "An-Nazi'at", ayahs: 46 },
-    { number: 80, name: "'Abasa", ayahs: 42 },
-    { number: 81, name: "At-Takwir", ayahs: 29 },
-    { number: 82, name: "Al-Infitar", ayahs: 19 },
-    { number: 83, name: "Al-Mutaffifin", ayahs: 36 },
-    { number: 84, name: "Al-Inshiqaq", ayahs: 25 },
-    { number: 85, name: "Al-Buruj", ayahs: 22 },
-    { number: 86, name: "At-Tariq", ayahs: 17 },
-    { number: 87, name: "Al-A'la", ayahs: 19 },
-    { number: 88, name: "Al-Ghashiyah", ayahs: 26 },
-    { number: 89, name: "Al-Fajr", ayahs: 30 },
-    { number: 90, name: "Al-Balad", ayahs: 20 },
-    { number: 91, name: "Ash-Shams", ayahs: 15 },
-    { number: 92, name: "Al-Layl", ayahs: 21 },
-    { number: 93, name: "Ad-Duhaa", ayahs: 11 },
-    { number: 94, name: "Ash-Sharh", ayahs: 8 },
-    { number: 95, name: "At-Tin", ayahs: 8 },
-    { number: 96, name: "Al-'Alaq", ayahs: 19 },
-    { number: 97, name: "Al-Qadr", ayahs: 5 },
-    { number: 98, name: "Al-Bayyinah", ayahs: 8 },
-    { number: 99, name: "Az-Zalzalah", ayahs: 8 },
-    { number: 100, name: "Al-'Adiyat", ayahs: 11 },
-    { number: 101, name: "Al-Qari'ah", ayahs: 11 },
-    { number: 102, name: "At-Takathur", ayahs: 8 },
-    { number: 103, name: "Al-'Asr", ayahs: 3 },
-    { number: 104, name: "Al-Humazah", ayahs: 9 },
-    { number: 105, name: "Al-Fil", ayahs: 5 },
-    { number: 106, name: "Quraysh", ayahs: 4 },
-    { number: 107, name: "Al-Ma'un", ayahs: 7 },
-    { number: 108, name: "Al-Kawthar", ayahs: 3 },
-    { number: 109, name: "Al-Kafirun", ayahs: 6 },
-    { number: 110, name: "An-Nasr", ayahs: 3 },
-    { number: 111, name: "Al-Masad", ayahs: 5 },
-    { number: 112, name: "Al-Ikhlas", ayahs: 4 },
-    { number: 113, name: "Al-Falaq", ayahs: 5 },
-    { number: 114, name: "An-Nas", ayahs: 6 },
-];
-const juzStarts = [
-    { juz: 1, surah: 1, ayah: 1 },
-    { juz: 2, surah: 2, ayah: 142 },
-    { juz: 3, surah: 2, ayah: 253 },
-    { juz: 4, surah: 3, ayah: 93 },
-    { juz: 5, surah: 4, ayah: 24 },
-    { juz: 6, surah: 4, ayah: 148 },
-    { juz: 7, surah: 5, ayah: 82 },
-    { juz: 8, surah: 6, ayah: 111 },
-    { juz: 9, surah: 7, ayah: 88 },
-    { juz: 10, surah: 8, ayah: 41 },
-    { juz: 11, surah: 9, ayah: 93 },
-    { juz: 12, surah: 11, ayah: 6 },
-    { juz: 13, surah: 12, ayah: 53 },
-    { juz: 14, surah: 15, ayah: 1 },
-    { juz: 15, surah: 17, ayah: 1 },
-    { juz: 16, surah: 18, ayah: 75 },
-    { juz: 17, surah: 21, ayah: 1 },
-    { juz: 18, surah: 23, ayah: 1 },
-    { juz: 19, surah: 25, ayah: 21 },
-    { juz: 20, surah: 27, ayah: 56 },
-    { juz: 21, surah: 29, ayah: 46 },
-    { juz: 22, surah: 33, ayah: 31 },
-    { juz: 23, surah: 36, ayah: 28 },
-    { juz: 24, surah: 39, ayah: 32 },
-    { juz: 25, surah: 41, ayah: 47 },
-    { juz: 26, surah: 46, ayah: 1 },
-    { juz: 27, surah: 51, ayah: 31 },
-    { juz: 28, surah: 58, ayah: 1 },
-    { juz: 29, surah: 67, ayah: 1 },
-    { juz: 30, surah: 78, ayah: 1 },
-];
+exports.createIdealLessonCoverage = exports.formatCoverageRange = exports.getFirstReferenceAfterMemorizedJuz = exports.getLatestSabaqRange = exports.calculateCompletedSurahs = exports.calculateCompletedJuz = exports.parseMemorizedJuzList = exports.getJuzProgressPercent = exports.getJuzForAyahReference = exports.normalizeCoverageRange = exports.parseCoverageRange = exports.surahs = void 0;
+const mushafLayout_1 = require("./mushafLayout");
+exports.surahs = (0, mushafLayout_1.getMushafSurahs)();
+const juzStarts = (0, mushafLayout_1.getMushafJuzStarts)();
 const surahOffsets = exports.surahs.reduce((offsets, surah, index) => {
     const previousSurah = exports.surahs[index - 1];
     const previousOffset = previousSurah ? offsets[previousSurah.number] + previousSurah.ayahs : 0;
@@ -269,6 +124,10 @@ const getJuzIntervals = () => juzStarts.map((juzStart, index) => {
     };
 });
 const getJuzForAyahReference = (surahNumber, ayah) => {
+    const juzLayout = (0, mushafLayout_1.getJuzLayoutForReference)(surahNumber, ayah);
+    if (juzLayout) {
+        return juzLayout.juz;
+    }
     const globalAyahNumber = getGlobalAyahNumber(surahNumber, ayah);
     const juzInterval = getJuzIntervals().find((interval) => globalAyahNumber >= interval.start && globalAyahNumber <= interval.end);
     return juzInterval?.juz || null;
@@ -277,6 +136,13 @@ exports.getJuzForAyahReference = getJuzForAyahReference;
 const getJuzProgressPercent = (surahNumber, ayah) => {
     if (!surahNumber || !ayah) {
         return 0;
+    }
+    const ayahLayout = (0, mushafLayout_1.getAyahLayout)(surahNumber, ayah);
+    const juzLayout = (0, mushafLayout_1.getJuzLayoutForReference)(surahNumber, ayah);
+    if (ayahLayout && juzLayout) {
+        const completedLines = (0, mushafLayout_1.getAyahLineCountInRange)(juzLayout.startGlobalLine, ayahLayout.endGlobalLine);
+        const totalLines = (0, mushafLayout_1.getAyahLineCountInRange)(juzLayout.startGlobalLine, juzLayout.endGlobalLine);
+        return Math.min(100, Math.max(0, Math.round((completedLines / totalLines) * 100)));
     }
     const globalAyahNumber = getGlobalAyahNumber(surahNumber, ayah);
     const juzInterval = getJuzIntervals().find((interval) => globalAyahNumber >= interval.start && globalAyahNumber <= interval.end);
@@ -334,6 +200,25 @@ const getLatestSabaqRange = (entries) => {
     return latestEntry ? (0, exports.parseCoverageRange)(latestEntry.sabaq) : null;
 };
 exports.getLatestSabaqRange = getLatestSabaqRange;
+const getFirstReferenceAfterMemorizedJuz = (memorizedJuz) => {
+    const memorizedJuzSet = new Set((memorizedJuz || []).map(Number));
+    const firstAvailableJuz = getJuzIntervals().find((interval) => !memorizedJuzSet.has(interval.juz));
+    if (!firstAvailableJuz) {
+        const lastSurah = exports.surahs[exports.surahs.length - 1];
+        return {
+            currentJuz: 30,
+            currentSurah: lastSurah.number,
+            currentAyah: lastSurah.ayahs,
+        };
+    }
+    const juzStart = juzStarts.find((start) => start.juz === firstAvailableJuz.juz);
+    return {
+        currentJuz: firstAvailableJuz.juz,
+        currentSurah: juzStart?.surah || 1,
+        currentAyah: juzStart?.ayah || 1,
+    };
+};
+exports.getFirstReferenceAfterMemorizedJuz = getFirstReferenceAfterMemorizedJuz;
 const defaultLessonPreferences = {
     averageSabaqPages: 0.5,
     averageSabaqParaPages: 3,
@@ -416,12 +301,40 @@ const expandCoverageByAyahCount = (coverage, ayahCount) => {
     };
 };
 const expandCoverageByPages = (coverage, pages) => {
+    const startLayout = (0, mushafLayout_1.getAyahLayout)(coverage.startSurahNumber, coverage.startAyah);
+    if (startLayout) {
+        const lineCount = Math.max(1, Number(pages) * (0, mushafLayout_1.getLinesPerMushafPage)());
+        const endReference = (0, mushafLayout_1.getReferenceEndingAfterAyahLineCount)({
+            surahNumber: coverage.startSurahNumber,
+            ayah: coverage.startAyah,
+        }, lineCount);
+        return {
+            ...coverage,
+            endSurahNumber: endReference.surahNumber,
+            endAyah: endReference.ayah,
+        };
+    }
     const globalAyahNumber = getGlobalAyahNumber(coverage.startSurahNumber, coverage.startAyah);
     const juzInterval = getJuzIntervals().find((interval) => globalAyahNumber >= interval.start && globalAyahNumber <= interval.end);
     const ayahsPerPage = juzInterval ? (juzInterval.end - juzInterval.start + 1) / 20 : 10;
     return expandCoverageByAyahCount(coverage, Number(pages) * ayahsPerPage);
 };
 const expandCoverageByJuz = (coverage, juzAmount) => {
+    const startLayout = (0, mushafLayout_1.getAyahLayout)(coverage.startSurahNumber, coverage.startAyah);
+    const juzLayout = (0, mushafLayout_1.getJuzLayoutForReference)(coverage.startSurahNumber, coverage.startAyah);
+    if (startLayout && juzLayout) {
+        const juzLineCount = (0, mushafLayout_1.getLinesPerMushafPage)() * 20;
+        const lineCount = Math.max(1, Number(juzAmount) * juzLineCount);
+        const endReference = (0, mushafLayout_1.getReferenceEndingAfterAyahLineCount)({
+            surahNumber: coverage.startSurahNumber,
+            ayah: coverage.startAyah,
+        }, lineCount);
+        return {
+            ...coverage,
+            endSurahNumber: endReference.surahNumber,
+            endAyah: endReference.ayah,
+        };
+    }
     const globalAyahNumber = getGlobalAyahNumber(coverage.startSurahNumber, coverage.startAyah);
     const juzInterval = getJuzIntervals().find((interval) => globalAyahNumber >= interval.start && globalAyahNumber <= interval.end);
     const ayahsPerJuz = juzInterval ? juzInterval.end - juzInterval.start + 1 : 200;

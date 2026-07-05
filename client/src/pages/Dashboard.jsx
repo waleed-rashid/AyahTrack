@@ -195,6 +195,14 @@ const formatSessionDuration = (seconds = 0) => {
   return `${remainingSeconds}s`;
 };
 
+const formatRevisionPreference = (juzAmount = 0) => {
+  const numericJuzAmount = Number(juzAmount) || 0;
+  const pages = numericJuzAmount * 20;
+  const pageLabel = pages === 1 ? "page" : "pages";
+
+  return `${numericJuzAmount} juz (${pages} ${pageLabel})`;
+};
+
 const renderSessionDuration = (seconds) => {
   const duration = formatSessionDuration(seconds);
 
@@ -240,11 +248,9 @@ export default function Dashboard() {
       ...defaultLessonPreferences,
       ...(dashboardData.lessonPreferences || dashboardData.user?.lessonPreferences || {}),
     };
-    const nextCoverage = createIdealCoverageFromLatest(
-      dashboardData.latestCoverage,
-      preferences,
-      sabaqCoverageMap
-    );
+    const nextCoverage =
+      dashboardData.idealCoverage ||
+      createIdealCoverageFromLatest(dashboardData.latestCoverage, preferences, sabaqCoverageMap);
 
     setData(dashboardData);
     setLessonPreferences(preferences);
@@ -508,6 +514,7 @@ export default function Dashboard() {
         progress: savedEntry.progress,
         sabaqEntries: savedEntry.sabaqEntries || data.sabaqEntries,
         latestCoverage: savedEntry.latestCoverage || data.latestCoverage,
+        idealCoverage: savedEntry.idealCoverage || data.idealCoverage,
         recentEntries: nextRecentEntries,
       };
       const unlockedBeforeSave = new Set(
@@ -534,11 +541,13 @@ export default function Dashboard() {
           nextDashboardData.sabaqEntries,
           nextDashboardData.progress?.memorizedJuz
         );
-        const nextCoverage = createIdealCoverageFromLatest(
-          nextDashboardData.latestCoverage,
-          lessonPreferences,
-          nextSabaqCoverageMap
-        );
+        const nextCoverage =
+          nextDashboardData.idealCoverage ||
+          createIdealCoverageFromLatest(
+            nextDashboardData.latestCoverage,
+            lessonPreferences,
+            nextSabaqCoverageMap
+          );
 
         return nextCoverage || currentCoverage;
       });
@@ -607,17 +616,16 @@ export default function Dashboard() {
         data.sabaqEntries,
         data.progress?.memorizedJuz
       );
-      const nextCoverage = createIdealCoverageFromLatest(
-        data.latestCoverage,
-        nextPreferences,
-        nextSabaqCoverageMap
-      );
+      const nextCoverage =
+        response.idealCoverage ||
+        createIdealCoverageFromLatest(data.latestCoverage, nextPreferences, nextSabaqCoverageMap);
 
       setLessonPreferences(nextPreferences);
       setLessonPreferenceDraft(nextPreferences);
       setData((currentData) => ({
         ...currentData,
         lessonPreferences: nextPreferences,
+        idealCoverage: response.idealCoverage || currentData.idealCoverage,
         user: {
           ...currentData.user,
           lessonPreferences: nextPreferences,
@@ -1297,7 +1305,7 @@ export default function Dashboard() {
                     style={styles.preferenceSlider}
                   />
                   <span className="preference-slider-value" style={styles.preferenceSliderValue}>
-                    {lessonPreferenceDraft.averageRevisionJuz} juz
+                    {formatRevisionPreference(lessonPreferenceDraft.averageRevisionJuz)}
                   </span>
                 </div>
               </label>
@@ -2050,7 +2058,7 @@ const styles = {
   },
   preferenceSliderRow: {
     display: "grid",
-    gridTemplateColumns: "1fr 86px",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(132px, auto)",
     alignItems: "center",
     gap: 13,
     minHeight: 40,
@@ -2069,7 +2077,7 @@ const styles = {
     borderRadius: 7,
     padding: "7px 9px",
     textAlign: "center",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 850,
     whiteSpace: "nowrap",
   },

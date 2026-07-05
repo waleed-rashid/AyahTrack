@@ -119,6 +119,19 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
             (savedEntry.manzilSaved && savedEntry.manzil.trim() ? savedEntry.manzil : ""),
     }), { sabaq: "", sabaqPara: "", manzil: "" });
     const achievementStats = (0, achievements_1.calculateAchievementStats)(entries, user.onboardingMemorizedJuzList);
+    const sabaqEntries = entries
+        .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
+        .map((entry) => ({ sabaq: entry.sabaq }));
+    const idealCoverage = (0, quranProgress_1.createIdealLessonCoverage)({
+        latestCoverage,
+        sabaqEntries,
+        memorizedJuz,
+        lessonPreferences: {
+            averageSabaqPages: user.averageSabaqPages,
+            averageSabaqParaPages: user.averageSabaqParaPages,
+            averageRevisionJuz: user.averageRevisionJuz,
+        },
+    });
     await prisma_1.prisma.user.update({
         where: { id: user.id },
         data: {
@@ -142,10 +155,9 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
         longestStreakRange: streakStats.longestStreakRange,
         weeklyActivity,
         achievementStats,
-        sabaqEntries: entries
-            .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
-            .map((entry) => ({ sabaq: entry.sabaq })),
+        sabaqEntries,
         latestCoverage,
+        idealCoverage,
         progress: {
             juz: memorizedJuz.length,
             memorizedJuz,

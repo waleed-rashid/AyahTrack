@@ -4,6 +4,8 @@ import { AuthRequest, authMiddleware } from "../middleware/auth";
 import {
   calculateCompletedJuz,
   calculateCompletedSurahs,
+  createIdealLessonCoverage,
+  getFirstReferenceAfterMemorizedJuz,
   getJuzForAyahReference,
   getJuzProgressPercent,
   getLatestSabaqRange,
@@ -15,6 +17,22 @@ import { calculateAchievementStats } from "../achievements";
 import { attachDeviceSessionSummaries } from "../deviceSessions";
 
 const router = express.Router();
+
+const getCurrentPoint = (
+  latestSabaqRange: ReturnType<typeof getLatestSabaqRange>,
+  memorizedJuz: number[]
+) => {
+  if (!latestSabaqRange) {
+    return getFirstReferenceAfterMemorizedJuz(memorizedJuz);
+  }
+
+  return {
+    currentJuz:
+      getJuzForAyahReference(latestSabaqRange.endSurahNumber, latestSabaqRange.endAyah) || null,
+    currentSurah: latestSabaqRange.endSurahNumber,
+    currentAyah: latestSabaqRange.endAyah,
+  };
+};
 
 // GET DASHBOARD DATA
 router.get("/", authMiddleware, async (req: AuthRequest, res) => {
@@ -82,17 +100,16 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
   );
   const memorizedSurahs = calculateCompletedSurahs(allEntries);
   const latestSabaqRange = getLatestSabaqRange(allEntries);
-  const currentJuz =
-    latestSabaqRange && getJuzForAyahReference(latestSabaqRange.endSurahNumber, latestSabaqRange.endAyah);
-  const effectiveCurrentJuz = currentJuz ?? user.currentJuz;
-  const currentSurah = latestSabaqRange?.endSurahNumber ?? user.currentSurah;
-  const currentAyah = latestSabaqRange?.endAyah ?? user.currentAyah;
+  const { currentJuz, currentSurah, currentAyah } = getCurrentPoint(
+    latestSabaqRange,
+    parseMemorizedJuzList(user.onboardingMemorizedJuzList)
+  );
   const currentJuzProgressPercent = getJuzProgressPercent(currentSurah, currentAyah);
 
   if (
     memorizedJuz.length !== user.memorizedJuzCount ||
     JSON.stringify(memorizedJuz) !== user.memorizedJuzList ||
-    effectiveCurrentJuz !== user.currentJuz ||
+    currentJuz !== user.currentJuz ||
     currentSurah !== user.currentSurah ||
     currentAyah !== user.currentAyah ||
     streakStats.currentStreak !== user.streak ||
@@ -104,7 +121,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
       data: {
         memorizedJuzCount: memorizedJuz.length,
         memorizedJuzList: JSON.stringify(memorizedJuz),
-        currentJuz: effectiveCurrentJuz,
+        currentJuz,
         currentSurah,
         currentAyah,
         streak: streakStats.currentStreak,
@@ -135,6 +152,19 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     allEntries,
     user.onboardingMemorizedJuzList
   );
+  const sabaqEntries = allEntries
+    .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
+    .map((entry) => ({ sabaq: entry.sabaq }));
+  const idealCoverage = createIdealLessonCoverage({
+    latestCoverage,
+    sabaqEntries,
+    memorizedJuz,
+    lessonPreferences: {
+      averageSabaqPages: user.averageSabaqPages,
+      averageSabaqParaPages: user.averageSabaqParaPages,
+      averageRevisionJuz: user.averageRevisionJuz,
+    },
+  });
 
   res.json({
     studentName: user.name,
@@ -157,7 +187,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     progress: {
       juz: memorizedJuz.length,
       memorizedJuz,
-      currentJuz: effectiveCurrentJuz,
+      currentJuz,
       currentSurah,
       currentAyah,
       currentJuzProgressPercent,
@@ -169,10 +199,9 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     longestStreakRange: streakStats.longestStreakRange,
     weeklyActivity,
     achievementStats,
-    sabaqEntries: allEntries
-      .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
-      .map((entry) => ({ sabaq: entry.sabaq })),
+    sabaqEntries,
     latestCoverage,
+    idealCoverage,
     todayEntry: todayEntry || null,
     recentEntries: recentEntriesWithSessions,
   });
@@ -209,6 +238,46 @@ router.patch("/lesson-preferences", authMiddleware, async (req: AuthRequest, res
       averageSabaqPages: true,
       averageSabaqParaPages: true,
       averageRevisionJuz: true,
+      onboardingMemorizedJuzList: true,
+    },
+  });
+  const entries = await prisma.dailyEntry.findMany({
+    where: { userId: req.userId },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+    select: {
+      sabaq: true,
+      sabaqPara: true,
+      manzil: true,
+      sabaqSaved: true,
+      sabaqParaSaved: true,
+      manzilSaved: true,
+    },
+  });
+  const latestCoverage = entries.reduce(
+    (coverage, entry) => ({
+      sabaq: coverage.sabaq || (entry.sabaqSaved && entry.sabaq.trim() ? entry.sabaq : ""),
+      sabaqPara:
+        coverage.sabaqPara ||
+        (entry.sabaqParaSaved && entry.sabaqPara.trim() ? entry.sabaqPara : ""),
+      manzil: coverage.manzil || (entry.manzilSaved && entry.manzil.trim() ? entry.manzil : ""),
+    }),
+    { sabaq: "", sabaqPara: "", manzil: "" }
+  );
+  const memorizedJuz = calculateCompletedJuz(
+    entries,
+    parseMemorizedJuzList(user.onboardingMemorizedJuzList)
+  );
+  const sabaqEntries = entries
+    .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
+    .map((entry) => ({ sabaq: entry.sabaq }));
+  const idealCoverage = createIdealLessonCoverage({
+    latestCoverage,
+    sabaqEntries,
+    memorizedJuz,
+    lessonPreferences: {
+      averageSabaqPages: user.averageSabaqPages,
+      averageSabaqParaPages: user.averageSabaqParaPages,
+      averageRevisionJuz: user.averageRevisionJuz,
     },
   });
 
@@ -218,6 +287,7 @@ router.patch("/lesson-preferences", authMiddleware, async (req: AuthRequest, res
       averageSabaqParaPages: user.averageSabaqParaPages,
       averageRevisionJuz: user.averageRevisionJuz,
     },
+    idealCoverage,
   });
 });
 
