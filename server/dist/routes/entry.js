@@ -105,9 +105,14 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
     const effectiveCurrentJuz = currentJuz ?? user.currentJuz;
     const currentSurah = sabaqRange?.endSurahNumber ?? user.currentSurah;
     const currentAyah = sabaqRange?.endAyah ?? user.currentAyah;
-    const currentJuzProgressPercent = (0, quranProgress_1.getJuzProgressPercent)(currentSurah, currentAyah);
-    const memorizedJuz = (0, quranProgress_1.calculateCompletedJuz)(entries, (0, quranProgress_1.parseMemorizedJuzList)(user.onboardingMemorizedJuzList), sabaqRange);
-    const memorizedSurahs = (0, quranProgress_1.calculateCompletedSurahs)(entries, sabaqRange);
+    const currentSurahProgressPercent = (0, quranProgress_1.getSurahProgressPercent)(currentSurah, currentAyah);
+    const memorizedJuz = (0, quranProgress_1.calculateCompletedJuz)(entries, (0, quranProgress_1.parseMemorizedJuzList)(user.onboardingMemorizedJuzList), sabaqRange, (0, quranProgress_1.parseMemorizedSurahList)(user.onboardingMemorizedSurahList), (0, quranProgress_1.parseMemorizedAyahRanges)(user.onboardingMemorizedAyahRanges));
+    const onboardingMemorizedJuz = (0, quranProgress_1.parseMemorizedJuzList)(user.onboardingMemorizedJuzList);
+    const onboardingMemorizedSurahs = (0, quranProgress_1.parseMemorizedSurahList)(user.onboardingMemorizedSurahList);
+    const onboardingMemorizedAyahRanges = (0, quranProgress_1.parseMemorizedAyahRanges)(user.onboardingMemorizedAyahRanges);
+    const currentJuzProgressPercent = (0, quranProgress_1.calculateCurrentJuzProgressPercent)(entries, onboardingMemorizedJuz, effectiveCurrentJuz, sabaqRange, onboardingMemorizedSurahs, onboardingMemorizedAyahRanges);
+    const currentJuzCompletionEstimate = (0, quranProgress_1.calculateCurrentJuzCompletionEstimate)(entries, onboardingMemorizedJuz, effectiveCurrentJuz, user.averageSabaqPages, sabaqRange, onboardingMemorizedSurahs, onboardingMemorizedAyahRanges);
+    const memorizedSurahs = (0, quranProgress_1.calculateCompletedSurahs)(entries, sabaqRange, onboardingMemorizedJuz, onboardingMemorizedSurahs, onboardingMemorizedAyahRanges);
     const latestCoverage = entries.reduce((coverage, savedEntry) => ({
         sabaq: coverage.sabaq ||
             (savedEntry.sabaqSaved && savedEntry.sabaq.trim() ? savedEntry.sabaq : ""),
@@ -125,11 +130,18 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
     const idealCoverage = (0, quranProgress_1.createIdealLessonCoverage)({
         latestCoverage,
         sabaqEntries,
+        sabaqParaSourceEntries: sabaqEntries,
         memorizedJuz,
+        memorizedSurahs: onboardingMemorizedSurahs,
+        memorizedAyahRanges: onboardingMemorizedAyahRanges,
         lessonPreferences: {
             averageSabaqPages: user.averageSabaqPages,
             averageSabaqParaPages: user.averageSabaqParaPages,
             averageRevisionJuz: user.averageRevisionJuz,
+        },
+        onboardingCurrentPoint: {
+            currentSurah,
+            currentAyah,
         },
     });
     await prisma_1.prisma.user.update({
@@ -161,10 +173,14 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
         progress: {
             juz: memorizedJuz.length,
             memorizedJuz,
+            memorizedSurahs: onboardingMemorizedSurahs,
+            memorizedAyahRanges: onboardingMemorizedAyahRanges,
             currentJuz: effectiveCurrentJuz,
             currentSurah,
             currentAyah,
             currentJuzProgressPercent,
+            currentJuzCompletionEstimate,
+            currentSurahProgressPercent,
             pages: 0,
             surahs: memorizedSurahs,
         },

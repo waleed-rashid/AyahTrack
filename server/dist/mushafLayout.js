@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getJuzLayoutForReference = exports.getAyahLineCountInRange = exports.getReferenceEndingAfterAyahLineCount = exports.getReferenceEndingAtOrBeforeLine = exports.getReferenceAtOrAfterLine = exports.getAyahLayout = exports.getLinesPerMushafPage = exports.getMushafJuzStarts = exports.getMushafSurahs = void 0;
+exports.getJuzLayoutForReference = exports.getAyahLineCountInRange = exports.getReferenceStartingBeforeLineCount = exports.getReferenceStartingBeforeAyahLineCount = exports.getReferenceEndingAfterLineCount = exports.getReferenceEndingAfterAyahLineCount = exports.getReferenceEndingAtOrBeforeLine = exports.getReferenceAtOrAfterLine = exports.getAyahLayout = exports.getAyahLinesPerMushafPage = exports.getLinesPerMushafPage = exports.getMushafJuzStarts = exports.getMushafSurahs = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 let cachedLayout = null;
@@ -54,6 +54,8 @@ const getMushafJuzStarts = () => getLayout().juz.map((juz) => ({
 exports.getMushafJuzStarts = getMushafJuzStarts;
 const getLinesPerMushafPage = () => getLayout().source.linesPerPage;
 exports.getLinesPerMushafPage = getLinesPerMushafPage;
+const getAyahLinesPerMushafPage = () => getAyahLines().length / getLayout().source.numberOfPages;
+exports.getAyahLinesPerMushafPage = getAyahLinesPerMushafPage;
 const getAyahLayout = (surahNumber, ayah) => getLayout().ayahs.find((layout) => layout.surah === Number(surahNumber) && layout.ayah === Number(ayah)) || null;
 exports.getAyahLayout = getAyahLayout;
 const getReferenceFromAyahLayout = (layout) => ({
@@ -90,6 +92,41 @@ const getReferenceEndingAfterAyahLineCount = (startReference, lineCount) => {
     return (0, exports.getReferenceEndingAtOrBeforeLine)(targetLine, startReference);
 };
 exports.getReferenceEndingAfterAyahLineCount = getReferenceEndingAfterAyahLineCount;
+const getReferenceEndingAfterLineCount = (startReference, lineCount) => {
+    const startLayout = (0, exports.getAyahLayout)(startReference.surahNumber, startReference.ayah);
+    if (!startLayout) {
+        return startReference;
+    }
+    const layout = getLayout();
+    const lastGlobalLine = layout.source.numberOfPages * layout.source.linesPerPage;
+    const targetLine = Math.min(lastGlobalLine, startLayout.startGlobalLine + Math.max(0, Math.floor(lineCount) - 1));
+    return (0, exports.getReferenceEndingAtOrBeforeLine)(targetLine, startReference);
+};
+exports.getReferenceEndingAfterLineCount = getReferenceEndingAfterLineCount;
+const getReferenceStartingBeforeAyahLineCount = (endReference, lineCount) => {
+    const endLayout = (0, exports.getAyahLayout)(endReference.surahNumber, endReference.ayah);
+    if (!endLayout) {
+        return endReference;
+    }
+    const ayahLines = getAyahLines();
+    const lastLineIndex = [...ayahLines]
+        .reverse()
+        .findIndex((line) => line <= endLayout.endGlobalLine);
+    const normalizedLastLineIndex = lastLineIndex >= 0 ? ayahLines.length - 1 - lastLineIndex : ayahLines.length - 1;
+    const targetOffset = Math.max(0, Math.floor(lineCount) - 1);
+    const targetLine = ayahLines[Math.max(0, normalizedLastLineIndex - targetOffset)];
+    return (0, exports.getReferenceAtOrAfterLine)(targetLine);
+};
+exports.getReferenceStartingBeforeAyahLineCount = getReferenceStartingBeforeAyahLineCount;
+const getReferenceStartingBeforeLineCount = (endReference, lineCount) => {
+    const endLayout = (0, exports.getAyahLayout)(endReference.surahNumber, endReference.ayah);
+    if (!endLayout) {
+        return endReference;
+    }
+    const targetLine = Math.max(1, endLayout.endGlobalLine - Math.max(0, Math.floor(lineCount) - 1));
+    return (0, exports.getReferenceAtOrAfterLine)(targetLine);
+};
+exports.getReferenceStartingBeforeLineCount = getReferenceStartingBeforeLineCount;
 const getAyahLineCountInRange = (startGlobalLine, endGlobalLine) => getAyahLines().filter((line) => line >= startGlobalLine && line <= endGlobalLine).length;
 exports.getAyahLineCountInRange = getAyahLineCountInRange;
 const getJuzLayoutForReference = (surahNumber, ayah) => {

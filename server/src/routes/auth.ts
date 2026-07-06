@@ -31,6 +31,7 @@ router.post("/signup", async (req, res) => {
     password,
     memorizedJuzCount = 0,
     memorizedJuzList = [],
+    memorizedSurahList = [],
     currentJuz,
     currentSurah,
     currentAyah,
@@ -48,6 +49,22 @@ router.post("/signup", async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const currentSurahNumber = Number(currentSurah);
+  const currentAyahNumber = Number(currentAyah);
+  const onboardingMemorizedAyahRanges =
+    Number.isInteger(currentSurahNumber) &&
+    Number.isInteger(currentAyahNumber) &&
+    currentSurahNumber > 0 &&
+    currentAyahNumber > 0
+      ? [
+          {
+            startSurahNumber: currentSurahNumber,
+            startAyah: 1,
+            endSurahNumber: currentSurahNumber,
+            endAyah: currentAyahNumber,
+          },
+        ]
+      : [];
 
   const user = await prisma.user.create({
     data: {
@@ -57,6 +74,8 @@ router.post("/signup", async (req, res) => {
       memorizedJuzCount,
       memorizedJuzList: JSON.stringify(memorizedJuzList),
       onboardingMemorizedJuzList: JSON.stringify(memorizedJuzList),
+      onboardingMemorizedSurahList: JSON.stringify(memorizedSurahList),
+      onboardingMemorizedAyahRanges: JSON.stringify(onboardingMemorizedAyahRanges),
       currentJuz,
       currentSurah,
       currentAyah,

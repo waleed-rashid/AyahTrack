@@ -5,7 +5,9 @@ import {
   calculateCompletedJuz,
   createIdealLessonCoverage,
   formatCoverageRange,
+  parseMemorizedAyahRanges,
   parseMemorizedJuzList,
+  parseMemorizedSurahList,
 } from "../quranProgress";
 
 const router = express.Router();
@@ -34,6 +36,10 @@ const getDeviceUser = async (req: express.Request) => {
       name: true,
       deviceToken: true,
       onboardingMemorizedJuzList: true,
+      onboardingMemorizedSurahList: true,
+      onboardingMemorizedAyahRanges: true,
+      currentSurah: true,
+      currentAyah: true,
       averageSabaqPages: true,
       averageSabaqParaPages: true,
       averageRevisionJuz: true,
@@ -94,7 +100,10 @@ router.get("/today", async (req, res) => {
   });
   const memorizedJuz = calculateCompletedJuz(
     entries,
-    parseMemorizedJuzList(user.onboardingMemorizedJuzList)
+    parseMemorizedJuzList(user.onboardingMemorizedJuzList),
+    null,
+    parseMemorizedSurahList(user.onboardingMemorizedSurahList),
+    parseMemorizedAyahRanges(user.onboardingMemorizedAyahRanges)
   );
   const latestCoverage = getLatestCoverage(entries);
   const idealCoverage = createIdealLessonCoverage({
@@ -102,11 +111,20 @@ router.get("/today", async (req, res) => {
     sabaqEntries: entries
       .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
       .map((entry) => ({ sabaq: entry.sabaq })),
+    sabaqParaSourceEntries: entries
+      .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
+    .map((entry) => ({ sabaq: entry.sabaq })),
     memorizedJuz,
+    memorizedSurahs: parseMemorizedSurahList(user.onboardingMemorizedSurahList),
+    memorizedAyahRanges: parseMemorizedAyahRanges(user.onboardingMemorizedAyahRanges),
     lessonPreferences: {
       averageSabaqPages: user.averageSabaqPages,
       averageSabaqParaPages: user.averageSabaqParaPages,
       averageRevisionJuz: user.averageRevisionJuz,
+    },
+    onboardingCurrentPoint: {
+      currentSurah: user.currentSurah,
+      currentAyah: user.currentAyah,
     },
   });
 

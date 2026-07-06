@@ -166,6 +166,11 @@ h3 {
   background: #1f7a55;
 }
 
+select option:disabled {
+  color: #7d8b84 !important;
+  background: #dfe6e2 !important;
+}
+
 .dashboard-dark {
   color: #e7f1eb !important;
   background: linear-gradient(180deg, #0f1714 0%, #17221e 100%) !important;
@@ -285,6 +290,11 @@ h3 {
 .dashboard-dark .dashboard-select option {
   color: #e7f1eb;
   background: #111b17;
+}
+
+.dashboard-dark select option:disabled {
+  color: #74847c !important;
+  background: #223029 !important;
 }
 
 .dashboard-dark button {
@@ -504,6 +514,24 @@ h3 {
   100% {
     opacity: 0;
     transform: translateX(-50%) translateY(8px);
+  }
+}
+
+@keyframes corner-notice-dissolve-life {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  14%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(8px);
   }
 }
 

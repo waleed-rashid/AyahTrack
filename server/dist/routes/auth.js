@@ -23,7 +23,7 @@ router.post("/check-email", async (req, res) => {
 });
 // SIGNUP
 router.post("/signup", async (req, res) => {
-    const { name, email, password, memorizedJuzCount = 0, memorizedJuzList = [], currentJuz, currentSurah, currentAyah, averageSabaqPages = 0.5, averageSabaqParaPages = 3, averageRevisionJuz = 0.25, } = req.body;
+    const { name, email, password, memorizedJuzCount = 0, memorizedJuzList = [], memorizedSurahList = [], currentJuz, currentSurah, currentAyah, averageSabaqPages = 0.5, averageSabaqParaPages = 3, averageRevisionJuz = 0.25, } = req.body;
     const existing = await prisma_1.prisma.user.findUnique({
         where: { email },
     });
@@ -31,6 +31,21 @@ router.post("/signup", async (req, res) => {
         return res.status(400).json({ message: "User already exists" });
     }
     const passwordHash = await bcrypt_1.default.hash(password, 10);
+    const currentSurahNumber = Number(currentSurah);
+    const currentAyahNumber = Number(currentAyah);
+    const onboardingMemorizedAyahRanges = Number.isInteger(currentSurahNumber) &&
+        Number.isInteger(currentAyahNumber) &&
+        currentSurahNumber > 0 &&
+        currentAyahNumber > 0
+        ? [
+            {
+                startSurahNumber: currentSurahNumber,
+                startAyah: 1,
+                endSurahNumber: currentSurahNumber,
+                endAyah: currentAyahNumber,
+            },
+        ]
+        : [];
     const user = await prisma_1.prisma.user.create({
         data: {
             name,
@@ -39,6 +54,8 @@ router.post("/signup", async (req, res) => {
             memorizedJuzCount,
             memorizedJuzList: JSON.stringify(memorizedJuzList),
             onboardingMemorizedJuzList: JSON.stringify(memorizedJuzList),
+            onboardingMemorizedSurahList: JSON.stringify(memorizedSurahList),
+            onboardingMemorizedAyahRanges: JSON.stringify(onboardingMemorizedAyahRanges),
             currentJuz,
             currentSurah,
             currentAyah,

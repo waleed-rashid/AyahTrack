@@ -107,6 +107,9 @@ export const getMushafJuzStarts = () =>
 
 export const getLinesPerMushafPage = () => getLayout().source.linesPerPage;
 
+export const getAyahLinesPerMushafPage = () =>
+  getAyahLines().length / getLayout().source.numberOfPages;
+
 export const getAyahLayout = (surahNumber: number, ayah: number) =>
   getLayout().ayahs.find(
     (layout) => layout.surah === Number(surahNumber) && layout.ayah === Number(ayah)
@@ -161,6 +164,63 @@ export const getReferenceEndingAfterAyahLineCount = (
     ayahLines[Math.min(Math.max(0, firstLineIndex) + targetOffset, ayahLines.length - 1)];
 
   return getReferenceEndingAtOrBeforeLine(targetLine, startReference);
+};
+
+export const getReferenceEndingAfterLineCount = (
+  startReference: AyahReference,
+  lineCount: number
+) => {
+  const startLayout = getAyahLayout(startReference.surahNumber, startReference.ayah);
+
+  if (!startLayout) {
+    return startReference;
+  }
+
+  const layout = getLayout();
+  const lastGlobalLine = layout.source.numberOfPages * layout.source.linesPerPage;
+  const targetLine = Math.min(
+    lastGlobalLine,
+    startLayout.startGlobalLine + Math.max(0, Math.floor(lineCount) - 1)
+  );
+
+  return getReferenceEndingAtOrBeforeLine(targetLine, startReference);
+};
+
+export const getReferenceStartingBeforeAyahLineCount = (
+  endReference: AyahReference,
+  lineCount: number
+) => {
+  const endLayout = getAyahLayout(endReference.surahNumber, endReference.ayah);
+
+  if (!endLayout) {
+    return endReference;
+  }
+
+  const ayahLines = getAyahLines();
+  const lastLineIndex = [...ayahLines]
+    .reverse()
+    .findIndex((line) => line <= endLayout.endGlobalLine);
+  const normalizedLastLineIndex =
+    lastLineIndex >= 0 ? ayahLines.length - 1 - lastLineIndex : ayahLines.length - 1;
+  const targetOffset = Math.max(0, Math.floor(lineCount) - 1);
+  const targetLine = ayahLines[Math.max(0, normalizedLastLineIndex - targetOffset)];
+
+  return getReferenceAtOrAfterLine(targetLine);
+};
+
+export const getReferenceStartingBeforeLineCount = (
+  endReference: AyahReference,
+  lineCount: number
+) => {
+  const endLayout = getAyahLayout(endReference.surahNumber, endReference.ayah);
+
+  if (!endLayout) {
+    return endReference;
+  }
+
+  const targetLine = Math.max(1, endLayout.endGlobalLine - Math.max(0, Math.floor(lineCount) - 1));
+
+  return getReferenceAtOrAfterLine(targetLine);
 };
 
 export const getAyahLineCountInRange = (startGlobalLine: number, endGlobalLine: number) =>

@@ -2,14 +2,18 @@ import express from "express";
 import { prisma } from "../prisma";
 import { AuthRequest, authMiddleware } from "../middleware/auth";
 import {
+  calculateCurrentJuzCompletionEstimate,
+  calculateCurrentJuzProgressPercent,
   calculateCompletedJuz,
   calculateCompletedSurahs,
   createIdealLessonCoverage,
   getFirstReferenceAfterMemorizedJuz,
   getJuzForAyahReference,
-  getJuzProgressPercent,
   getLatestSabaqRange,
+  getSurahProgressPercent,
+  parseMemorizedAyahRanges,
   parseMemorizedJuzList,
+  parseMemorizedSurahList,
 } from "../quranProgress";
 import { calculateStreakStats } from "../streaks";
 import { calculateWeeklyActivity } from "../weeklyActivity";
@@ -20,9 +24,26 @@ const router = express.Router();
 
 const getCurrentPoint = (
   latestSabaqRange: ReturnType<typeof getLatestSabaqRange>,
-  memorizedJuz: number[]
+  memorizedJuz: number[],
+  savedCurrentPoint: {
+    currentJuz?: number | null;
+    currentSurah?: number | null;
+    currentAyah?: number | null;
+  }
 ) => {
   if (!latestSabaqRange) {
+    if (
+      savedCurrentPoint.currentJuz &&
+      savedCurrentPoint.currentSurah &&
+      savedCurrentPoint.currentAyah
+    ) {
+      return {
+        currentJuz: savedCurrentPoint.currentJuz,
+        currentSurah: savedCurrentPoint.currentSurah,
+        currentAyah: savedCurrentPoint.currentAyah,
+      };
+    }
+
     return getFirstReferenceAfterMemorizedJuz(memorizedJuz);
   }
 
@@ -53,6 +74,8 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
       memorizedJuzCount: true,
       memorizedJuzList: true,
       onboardingMemorizedJuzList: true,
+      onboardingMemorizedSurahList: true,
+      onboardingMemorizedAyahRanges: true,
       currentJuz: true,
       currentSurah: true,
       currentAyah: true,
@@ -94,17 +117,53 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
   });
   const streakStats = calculateStreakStats(allEntries, today);
   const weeklyActivity = calculateWeeklyActivity(allEntries, today, user.createdAt);
+  const onboardingMemorizedJuz = parseMemorizedJuzList(user.onboardingMemorizedJuzList);
+  const onboardingMemorizedSurahs = parseMemorizedSurahList(user.onboardingMemorizedSurahList);
+  const onboardingMemorizedAyahRanges = parseMemorizedAyahRanges(
+    user.onboardingMemorizedAyahRanges
+  );
   const memorizedJuz = calculateCompletedJuz(
     allEntries,
-    parseMemorizedJuzList(user.onboardingMemorizedJuzList)
+    onboardingMemorizedJuz,
+    null,
+    onboardingMemorizedSurahs,
+    onboardingMemorizedAyahRanges
   );
-  const memorizedSurahs = calculateCompletedSurahs(allEntries);
+  const memorizedSurahCount = calculateCompletedSurahs(
+    allEntries,
+    null,
+    onboardingMemorizedJuz,
+    onboardingMemorizedSurahs,
+    onboardingMemorizedAyahRanges
+  );
   const latestSabaqRange = getLatestSabaqRange(allEntries);
   const { currentJuz, currentSurah, currentAyah } = getCurrentPoint(
     latestSabaqRange,
-    parseMemorizedJuzList(user.onboardingMemorizedJuzList)
+    onboardingMemorizedJuz,
+    {
+      currentJuz: user.currentJuz,
+      currentSurah: user.currentSurah,
+      currentAyah: user.currentAyah,
+    }
   );
-  const currentJuzProgressPercent = getJuzProgressPercent(currentSurah, currentAyah);
+  const currentJuzProgressPercent = calculateCurrentJuzProgressPercent(
+    allEntries,
+    onboardingMemorizedJuz,
+    currentJuz,
+    null,
+    onboardingMemorizedSurahs,
+    onboardingMemorizedAyahRanges
+  );
+  const currentJuzCompletionEstimate = calculateCurrentJuzCompletionEstimate(
+    allEntries,
+    onboardingMemorizedJuz,
+    currentJuz,
+    user.averageSabaqPages,
+    null,
+    onboardingMemorizedSurahs,
+    onboardingMemorizedAyahRanges
+  );
+  const currentSurahProgressPercent = getSurahProgressPercent(currentSurah, currentAyah);
 
   if (
     memorizedJuz.length !== user.memorizedJuzCount ||
@@ -158,11 +217,18 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
   const idealCoverage = createIdealLessonCoverage({
     latestCoverage,
     sabaqEntries,
+    sabaqParaSourceEntries: sabaqEntries,
     memorizedJuz,
+    memorizedSurahs: onboardingMemorizedSurahs,
+    memorizedAyahRanges: onboardingMemorizedAyahRanges,
     lessonPreferences: {
       averageSabaqPages: user.averageSabaqPages,
       averageSabaqParaPages: user.averageSabaqParaPages,
       averageRevisionJuz: user.averageRevisionJuz,
+    },
+    onboardingCurrentPoint: {
+      currentSurah,
+      currentAyah,
     },
   });
 
@@ -191,8 +257,12 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
       currentSurah,
       currentAyah,
       currentJuzProgressPercent,
+      currentJuzCompletionEstimate,
+      currentSurahProgressPercent,
+      memorizedSurahs: onboardingMemorizedSurahs,
+      memorizedAyahRanges: onboardingMemorizedAyahRanges,
       pages: 0,
-      surahs: memorizedSurahs,
+      surahs: memorizedSurahCount,
     },
     streak: streakStats.currentStreak,
     longestStreak: streakStats.longestStreak,
@@ -239,12 +309,17 @@ router.patch("/lesson-preferences", authMiddleware, async (req: AuthRequest, res
       averageSabaqParaPages: true,
       averageRevisionJuz: true,
       onboardingMemorizedJuzList: true,
+      onboardingMemorizedSurahList: true,
+      onboardingMemorizedAyahRanges: true,
+      currentSurah: true,
+      currentAyah: true,
     },
   });
   const entries = await prisma.dailyEntry.findMany({
     where: { userId: req.userId },
     orderBy: [{ date: "desc" }, { id: "desc" }],
     select: {
+      date: true,
       sabaq: true,
       sabaqPara: true,
       manzil: true,
@@ -265,7 +340,10 @@ router.patch("/lesson-preferences", authMiddleware, async (req: AuthRequest, res
   );
   const memorizedJuz = calculateCompletedJuz(
     entries,
-    parseMemorizedJuzList(user.onboardingMemorizedJuzList)
+    parseMemorizedJuzList(user.onboardingMemorizedJuzList),
+    null,
+    parseMemorizedSurahList(user.onboardingMemorizedSurahList),
+    parseMemorizedAyahRanges(user.onboardingMemorizedAyahRanges)
   );
   const sabaqEntries = entries
     .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
@@ -273,13 +351,31 @@ router.patch("/lesson-preferences", authMiddleware, async (req: AuthRequest, res
   const idealCoverage = createIdealLessonCoverage({
     latestCoverage,
     sabaqEntries,
+    sabaqParaSourceEntries: sabaqEntries,
     memorizedJuz,
+    memorizedSurahs: parseMemorizedSurahList(user.onboardingMemorizedSurahList),
+    memorizedAyahRanges: parseMemorizedAyahRanges(user.onboardingMemorizedAyahRanges),
     lessonPreferences: {
       averageSabaqPages: user.averageSabaqPages,
       averageSabaqParaPages: user.averageSabaqParaPages,
       averageRevisionJuz: user.averageRevisionJuz,
     },
+    onboardingCurrentPoint: {
+      currentSurah: user.currentSurah,
+      currentAyah: user.currentAyah,
+    },
   });
+  const currentJuzCompletionEstimate = calculateCurrentJuzCompletionEstimate(
+    entries,
+    parseMemorizedJuzList(user.onboardingMemorizedJuzList),
+    user.currentSurah && user.currentAyah
+      ? getJuzForAyahReference(user.currentSurah, user.currentAyah)
+      : null,
+    user.averageSabaqPages,
+    null,
+    parseMemorizedSurahList(user.onboardingMemorizedSurahList),
+    parseMemorizedAyahRanges(user.onboardingMemorizedAyahRanges)
+  );
 
   res.json({
     lessonPreferences: {
@@ -288,6 +384,7 @@ router.patch("/lesson-preferences", authMiddleware, async (req: AuthRequest, res
       averageRevisionJuz: user.averageRevisionJuz,
     },
     idealCoverage,
+    currentJuzCompletionEstimate,
   });
 });
 

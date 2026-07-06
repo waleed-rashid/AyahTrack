@@ -21,6 +21,8 @@ model User {
   memorizedJuzCount Int    @default(0)
   memorizedJuzList  String @default("[]")
   onboardingMemorizedJuzList String @default("[]")
+  onboardingMemorizedSurahList String @default("[]")
+  onboardingMemorizedAyahRanges String @default("[]")
   currentJuz        Int?
   currentSurah      Int?
   currentAyah       Int?

@@ -86,14 +86,98 @@ const isReferenceInMemorizedJuz = (memorizedJuzList, surahNumber, ayah) => {
   const juz = getJuzForReference(surahNumber, ayah)?.juz;
   return memorizedJuzList.includes(juz);
 };
-const getFirstAvailableCurrentPoint = (memorizedJuzList) => {
-  const firstAvailableJuz = juzIntervals.find((interval) => !memorizedJuzList.includes(interval.juz));
-  const fallback = firstAvailableJuz || juzIntervals[juzIntervals.length - 1];
+const getSurahsFullyInMemorizedJuz = (memorizedJuzList) =>
+  surahs
+    .filter((surah) => {
+      const start = getGlobalAyahNumber(surah.number, 1);
+      const end = getGlobalAyahNumber(surah.number, surah.ayahs);
+
+      return juzIntervals.some(
+        (interval) =>
+          memorizedJuzList.includes(interval.juz) && start >= interval.start && end <= interval.end
+      );
+    })
+    .map((surah) => surah.number);
+const getSurahsFullyInJuz = (juz) => getSurahsFullyInMemorizedJuz([juz]);
+const mergeIntervals = (intervals) =>
+  [...intervals]
+    .sort((a, b) => a.start - b.start)
+    .reduce((merged, interval) => {
+      const previousInterval = merged[merged.length - 1];
+
+      if (!previousInterval || interval.start > previousInterval.end + 1) {
+        merged.push({ ...interval });
+        return merged;
+      }
+
+      previousInterval.end = Math.max(previousInterval.end, interval.end);
+      return merged;
+    }, []);
+const getJuzFullyCoveredBySurahs = (memorizedSurahList = []) => {
+  const memorizedSurahSet = new Set((memorizedSurahList || []).map(Number));
+  const coveredIntervals = mergeIntervals(
+    surahs
+      .filter((surah) => memorizedSurahSet.has(surah.number))
+      .map((surah) => ({
+        start: getGlobalAyahNumber(surah.number, 1),
+        end: getGlobalAyahNumber(surah.number, surah.ayahs),
+      }))
+  );
+
+  return juzIntervals
+    .filter((juzInterval) =>
+      coveredIntervals.some(
+        (interval) => interval.start <= juzInterval.start && interval.end >= juzInterval.end
+      )
+    )
+    .map((juzInterval) => juzInterval.juz);
+};
+const getJuzTouchingSurah = (surahNumber) => {
+  const surah = getSurahByNumber(surahNumber);
+  const start = getGlobalAyahNumber(surah.number, 1);
+  const end = getGlobalAyahNumber(surah.number, surah.ayahs);
+
+  return juzIntervals
+    .filter((interval) => start <= interval.end && end >= interval.start)
+    .map((interval) => interval.juz);
+};
+const isReferenceInMemorizedAyahRanges = (memorizedAyahRanges, surahNumber, ayah) =>
+  (memorizedAyahRanges || []).some((range) => {
+    const globalAyah = getGlobalAyahNumber(surahNumber, ayah);
+    const startGlobalAyah = getGlobalAyahNumber(range.startSurahNumber, range.startAyah);
+    const endGlobalAyah = getGlobalAyahNumber(range.endSurahNumber, range.endAyah);
+
+    return globalAyah >= startGlobalAyah && globalAyah <= endGlobalAyah;
+  });
+const isReferenceMemorized = (
+  memorizedJuzList,
+  memorizedSurahList,
+  surahNumber,
+  ayah,
+  memorizedAyahRanges = []
+) =>
+  isReferenceInMemorizedJuz(memorizedJuzList, surahNumber, ayah) ||
+  memorizedSurahList.includes(Number(surahNumber)) ||
+  isReferenceInMemorizedAyahRanges(memorizedAyahRanges, surahNumber, ayah);
+const getFirstAvailableCurrentPoint = (memorizedJuzList, memorizedSurahList = []) => {
+  for (const surah of surahs) {
+    for (let ayah = 1; ayah <= surah.ayahs; ayah += 1) {
+      if (!isReferenceMemorized(memorizedJuzList, memorizedSurahList, surah.number, ayah)) {
+        return {
+          currentJuz: getJuzForReference(surah.number, ayah)?.juz || 1,
+          currentSurah: surah.number,
+          currentAyah: ayah,
+        };
+      }
+    }
+  }
+
+  const fallback = juzIntervals[juzIntervals.length - 1];
 
   return {
     currentJuz: fallback.juz,
-    currentSurah: fallback.startReference.surah,
-    currentAyah: fallback.startReference.ayah,
+    currentSurah: fallback.endReference.surah,
+    currentAyah: fallback.endReference.ayah,
   };
 };
 
@@ -111,6 +195,7 @@ export default function Login() {
     confirmPassword: "",
     memorizedJuzCount: 0,
     memorizedJuzList: [],
+    memorizedSurahList: [],
     currentJuz: 1,
     currentSurah: 1,
     currentAyah: 1,
@@ -121,6 +206,8 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const redirectTo = location.state?.from || "/dashboard";
+  const autoMemorizedSurahList = getSurahsFullyInMemorizedJuz(signupForm.memorizedJuzList);
+  const effectiveMemorizedSurahList = signupForm.memorizedSurahList;
 
   const selectedCurrentSurah =
     surahs.find((surah) => surah.number === Number(signupForm.currentSurah)) || surahs[0];
@@ -130,14 +217,25 @@ export default function Login() {
   );
   const isCurrentSurahFullyMemorized = (surah) =>
     Array.from({ length: surah.ayahs }, (_, index) => index + 1).every((ayah) =>
-      isReferenceInMemorizedJuz(signupForm.memorizedJuzList, surah.number, ayah)
+      isReferenceMemorized(
+        signupForm.memorizedJuzList,
+        effectiveMemorizedSurahList,
+        surah.number,
+        ayah
+      )
     );
   const getFirstAvailableAyahInSurah = (surahNumber) => {
     const surah = getSurahByNumber(surahNumber);
 
     return (
       Array.from({ length: surah.ayahs }, (_, index) => index + 1).find(
-        (ayah) => !isReferenceInMemorizedJuz(signupForm.memorizedJuzList, surah.number, ayah)
+        (ayah) =>
+          !isReferenceMemorized(
+            signupForm.memorizedJuzList,
+            effectiveMemorizedSurahList,
+            surah.number,
+            ayah
+          )
       ) || 1
     );
   };
@@ -194,20 +292,66 @@ export default function Login() {
   const toggleJuz = (juz) => {
     setSignupForm((currentForm) => {
       const hasJuz = currentForm.memorizedJuzList.includes(juz);
+      const juzSurahs = getSurahsFullyInJuz(juz);
+      const memorizedSurahList = hasJuz
+        ? currentForm.memorizedSurahList.filter((surahNumber) => !juzSurahs.includes(surahNumber))
+        : [...new Set([...currentForm.memorizedSurahList, ...juzSurahs])].sort((a, b) => a - b);
       const memorizedJuzList = hasJuz
         ? currentForm.memorizedJuzList.filter((item) => item !== juz)
         : [...currentForm.memorizedJuzList, juz].sort((a, b) => a - b);
+      const syncedJuzList = [
+        ...new Set([...memorizedJuzList, ...getJuzFullyCoveredBySurahs(memorizedSurahList)]),
+      ].sort((a, b) => a - b);
 
       return {
         ...currentForm,
-        memorizedJuzList,
-        memorizedJuzCount: memorizedJuzList.length,
-        ...(isReferenceInMemorizedJuz(
-          memorizedJuzList,
+        memorizedJuzList: syncedJuzList,
+        memorizedJuzCount: syncedJuzList.length,
+        memorizedSurahList,
+        ...(isReferenceMemorized(
+          syncedJuzList,
+          memorizedSurahList,
           currentForm.currentSurah,
           currentForm.currentAyah
         )
-          ? getFirstAvailableCurrentPoint(memorizedJuzList)
+          ? getFirstAvailableCurrentPoint(
+              syncedJuzList,
+              memorizedSurahList
+            )
+          : {}),
+      };
+    });
+  };
+
+  const toggleSurah = (surahNumber) => {
+    setSignupForm((currentForm) => {
+      const hasSurah = currentForm.memorizedSurahList.includes(surahNumber);
+      const memorizedSurahList = hasSurah
+        ? currentForm.memorizedSurahList.filter((item) => item !== surahNumber)
+        : [...currentForm.memorizedSurahList, surahNumber].sort((a, b) => a - b);
+      const coveredJuzList = getJuzFullyCoveredBySurahs(memorizedSurahList);
+      const affectedJuzList = getJuzTouchingSurah(surahNumber);
+      const memorizedJuzList = [
+        ...new Set([
+          ...currentForm.memorizedJuzList.filter(
+            (juz) => !affectedJuzList.includes(juz) || coveredJuzList.includes(juz)
+          ),
+          ...coveredJuzList,
+        ]),
+      ].sort((a, b) => a - b);
+
+      return {
+        ...currentForm,
+        memorizedSurahList,
+        memorizedJuzList,
+        memorizedJuzCount: memorizedJuzList.length,
+        ...(isReferenceMemorized(
+          memorizedJuzList,
+          memorizedSurahList,
+          currentForm.currentSurah,
+          currentForm.currentAyah
+        )
+          ? getFirstAvailableCurrentPoint(memorizedJuzList, memorizedSurahList)
           : {}),
       };
     });
@@ -294,6 +438,7 @@ export default function Login() {
         password: signupForm.password,
         memorizedJuzCount: signupForm.memorizedJuzCount,
         memorizedJuzList: signupForm.memorizedJuzList,
+        memorizedSurahList: effectiveMemorizedSurahList,
         currentJuz: Number(signupForm.currentJuz),
         currentSurah: Number(signupForm.currentSurah),
         currentAyah: Number(signupForm.currentAyah),
@@ -471,107 +616,144 @@ export default function Login() {
               </>
             ) : signupStep === 2 ? (
               <>
-                <label style={styles.label}>
-                  How many ajzaa have you memorized?
-                  <input
-                    value={signupForm.memorizedJuzCount}
-                    type="number"
-                    tabIndex={-1}
-                    aria-readonly="true"
-                    readOnly
-                    style={{ ...styles.input, ...styles.memorizedJuzCountInput }}
-                  />
-                </label>
+                <div style={styles.signupQuestionStack}>
+                  <div>
+                    <div style={styles.sectionHeaderRow}>
+                      <p style={styles.fieldText}>Which ajzaa have you fully memorized?</p>
+                      <input
+                        value={signupForm.memorizedJuzCount}
+                        type="number"
+                        tabIndex={-1}
+                        aria-label="Total ajzaa memorized"
+                        aria-readonly="true"
+                        readOnly
+                        style={{ ...styles.input, ...styles.memorizedJuzCountInput }}
+                      />
+                    </div>
+                    <div style={styles.juzGrid}>
+                      {juzOptions.map((juz) => {
+                        const isSelected = signupForm.memorizedJuzList.includes(juz);
 
-                <div>
-                  <p style={styles.fieldText}>Which ajzaa specifically?</p>
-                  <div style={styles.juzGrid}>
-                    {juzOptions.map((juz) => {
-                      const isSelected = signupForm.memorizedJuzList.includes(juz);
-
-                      return (
-                        <button
-                          className={`signup-juz-button${isSelected ? " signup-juz-button-selected" : ""}`}
-                          key={juz}
-                          type="button"
-                          onMouseDown={(event) => event.preventDefault()}
-                          onClick={(event) => {
-                            toggleJuz(juz);
-                            event.currentTarget.blur();
-                          }}
-                          style={{
-                            ...styles.juzButton,
-                            ...(isSelected ? styles.selectedJuzButton : {}),
-                          }}
-                        >
-                          {juz}
-                        </button>
-                      );
-                    })}
+                        return (
+                          <button
+                            className={`signup-juz-button${isSelected ? " signup-juz-button-selected" : ""}`}
+                            key={juz}
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={(event) => {
+                              toggleJuz(juz);
+                              event.currentTarget.blur();
+                            }}
+                            style={{
+                              ...styles.juzButton,
+                              ...(isSelected ? styles.selectedJuzButton : {}),
+                            }}
+                          >
+                            {juz}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
 
-                <div style={styles.currentProgressGrid}>
-                  <label style={styles.label}>
-                    Current Juz
-                    <select
-                      value={signupForm.currentJuz}
-                      onChange={(e) => setCurrentJuz(e.target.value)}
-                      style={styles.input}
-                    >
-                      {juzOptions.map((juz) => (
-                        <option
-                          key={juz}
-                          value={juz}
-                          disabled={signupForm.memorizedJuzList.includes(juz)}
-                        >
-                          Juz {juz}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <div>
+                    <p style={styles.fieldText}>Which surahs have you fully memorized?</p>
+                    <div style={styles.surahGrid}>
+                      {surahs.map((surah) => {
+                        const isSelected = effectiveMemorizedSurahList.includes(surah.number);
 
-                  <label style={styles.label}>
-                    Current Surah
-                    <select
-                      value={signupForm.currentSurah}
-                      onChange={(e) => setCurrentSurah(e.target.value)}
-                      style={styles.input}
-                    >
-                      {surahs.map((surah) => (
-                        <option
-                          key={surah.number}
-                          value={surah.number}
-                          disabled={isCurrentSurahFullyMemorized(surah)}
-                        >
-                          {surah.number}. {surah.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                        return (
+                          <button
+                            className={`signup-juz-button${isSelected ? " signup-juz-button-selected" : ""}`}
+                            key={surah.number}
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={(event) => {
+                              toggleSurah(surah.number);
+                              event.currentTarget.blur();
+                            }}
+                            style={{
+                              ...styles.surahButton,
+                              ...(isSelected ? styles.selectedJuzButton : {}),
+                            }}
+                            title={surah.name}
+                          >
+                            {surah.number}. {surah.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-                  <label style={styles.label}>
-                    Current Ayah
-                    <select
-                      value={signupForm.currentAyah}
-                      onChange={(e) => setCurrentAyah(e.target.value)}
-                      style={styles.input}
-                    >
-                      {currentAyahOptions.map((ayah) => (
-                        <option
-                          key={ayah}
-                          value={ayah}
-                          disabled={isReferenceInMemorizedJuz(
-                            signupForm.memorizedJuzList,
-                            selectedCurrentSurah.number,
-                            ayah
-                          )}
+                  <div>
+                    <p style={styles.fieldText}>Where are you currently memorizing? (Last memorized ayah)</p>
+                    <div style={styles.currentProgressGrid}>
+                      <label style={styles.label}>
+                        Current Juz
+                        <select
+                          value={signupForm.currentJuz}
+                          onChange={(e) => setCurrentJuz(e.target.value)}
+                          style={styles.input}
                         >
-                          {ayah}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                          {juzOptions.map((juz) => (
+                            <option
+                              key={juz}
+                              value={juz}
+                              disabled={signupForm.memorizedJuzList.includes(juz)}
+                            >
+                              Juz {juz}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label style={styles.label}>
+                        Current Surah
+                        <select
+                          value={signupForm.currentSurah}
+                          onChange={(e) => setCurrentSurah(e.target.value)}
+                          style={styles.input}
+                        >
+                          {surahs.map((surah) => (
+                            <option
+                              key={surah.number}
+                              value={surah.number}
+                              disabled={
+                                effectiveMemorizedSurahList.includes(surah.number) ||
+                                isCurrentSurahFullyMemorized(surah)
+                              }
+                            >
+                              {surah.number}. {surah.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label style={styles.label}>
+                        Current Ayah
+                        <select
+                          value={signupForm.currentAyah}
+                          onChange={(e) => setCurrentAyah(e.target.value)}
+                          style={styles.input}
+                        >
+                          {currentAyahOptions.map((ayah) => (
+                            <option
+                              key={ayah}
+                              value={ayah}
+                              disabled={isReferenceMemorized(
+                                signupForm.memorizedJuzList,
+                                effectiveMemorizedSurahList,
+                                selectedCurrentSurah.number,
+                                ayah
+                              )}
+                            >
+                              {ayah}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
                 <div style={styles.actionRow}>
@@ -661,7 +843,7 @@ export default function Login() {
                 </div>
 
                 <p style={styles.helperText}>
-                  These will be used to determine your ideal lesson ranges for the day, they do not affect your progress. You can always change them later.
+                  These will be used to determine your ideal lessons for the day, they do not affect your progress. You can always change them later.
                 </p>
 
                 <div style={styles.actionRow}>
@@ -857,10 +1039,29 @@ const styles = {
     borderColor: "#d8ecdf",
     fontWeight: 850,
   },
+  sectionHeaderRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 8,
+  },
+  signupQuestionStack: {
+    display: "grid",
+    gap: 22,
+  },
   juzGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(10, 1fr)",
     gap: 6,
+  },
+  surahGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(118px, 1fr))",
+    gap: 6,
+    maxHeight: 210,
+    overflowY: "auto",
+    paddingRight: 3,
   },
   juzButton: {
     minHeight: 32,
@@ -875,6 +1076,18 @@ const styles = {
     color: "white",
     background: "#1f7a55",
     borderColor: "#1b6f4d",
+  },
+  surahButton: {
+    minHeight: 34,
+    color: "#5b7067",
+    background: "#fbfdfb",
+    border: "1px solid #d8e3dc",
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 750,
+    cursor: "pointer",
+    textAlign: "left",
+    padding: "7px 8px",
   },
   currentProgressGrid: {
     display: "grid",
@@ -925,6 +1138,7 @@ const styles = {
     fontWeight: 750,
     boxShadow: "0 10px 18px rgba(31, 122, 85, 0.18)",
     marginTop: 4,
+    cursor: "pointer",
   },
   secondaryButton: {
     width: "100%",

@@ -28,6 +28,10 @@ const getDeviceUser = async (req) => {
             name: true,
             deviceToken: true,
             onboardingMemorizedJuzList: true,
+            onboardingMemorizedSurahList: true,
+            onboardingMemorizedAyahRanges: true,
+            currentSurah: true,
+            currentAyah: true,
             averageSabaqPages: true,
             averageSabaqParaPages: true,
             averageRevisionJuz: true,
@@ -71,18 +75,27 @@ router.get("/today", async (req, res) => {
             manzilSaved: true,
         },
     });
-    const memorizedJuz = (0, quranProgress_1.calculateCompletedJuz)(entries, (0, quranProgress_1.parseMemorizedJuzList)(user.onboardingMemorizedJuzList));
+    const memorizedJuz = (0, quranProgress_1.calculateCompletedJuz)(entries, (0, quranProgress_1.parseMemorizedJuzList)(user.onboardingMemorizedJuzList), null, (0, quranProgress_1.parseMemorizedSurahList)(user.onboardingMemorizedSurahList), (0, quranProgress_1.parseMemorizedAyahRanges)(user.onboardingMemorizedAyahRanges));
     const latestCoverage = getLatestCoverage(entries);
     const idealCoverage = (0, quranProgress_1.createIdealLessonCoverage)({
         latestCoverage,
         sabaqEntries: entries
             .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
             .map((entry) => ({ sabaq: entry.sabaq })),
+        sabaqParaSourceEntries: entries
+            .filter((entry) => entry.sabaqSaved && entry.sabaq.trim())
+            .map((entry) => ({ sabaq: entry.sabaq })),
         memorizedJuz,
+        memorizedSurahs: (0, quranProgress_1.parseMemorizedSurahList)(user.onboardingMemorizedSurahList),
+        memorizedAyahRanges: (0, quranProgress_1.parseMemorizedAyahRanges)(user.onboardingMemorizedAyahRanges),
         lessonPreferences: {
             averageSabaqPages: user.averageSabaqPages,
             averageSabaqParaPages: user.averageSabaqParaPages,
             averageRevisionJuz: user.averageRevisionJuz,
+        },
+        onboardingCurrentPoint: {
+            currentSurah: user.currentSurah,
+            currentAyah: user.currentAyah,
         },
     });
     res.json({

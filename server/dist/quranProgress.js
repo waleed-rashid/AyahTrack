@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createIdealLessonCoverage = exports.formatCoverageRange = exports.getFirstReferenceAfterMemorizedJuz = exports.getLatestSabaqRange = exports.calculateCompletedSurahs = exports.calculateCompletedJuz = exports.parseMemorizedJuzList = exports.getJuzProgressPercent = exports.getJuzForAyahReference = exports.normalizeCoverageRange = exports.parseCoverageRange = exports.surahs = void 0;
+exports.createIdealLessonCoverage = exports.formatCoverageRange = exports.getFirstReferenceAfterMemorizedJuz = exports.getLatestSabaqRange = exports.calculateCompletedSurahs = exports.calculateCompletedJuz = exports.parseMemorizedAyahRanges = exports.parseMemorizedSurahList = exports.parseMemorizedJuzList = exports.getSurahProgressPercent = exports.getJuzCompletionEstimate = exports.calculateCurrentJuzCompletionEstimate = exports.calculateCurrentJuzProgressPercent = exports.getJuzProgressPercent = exports.getJuzForAyahReference = exports.normalizeCoverageRange = exports.parseCoverageRange = exports.surahs = void 0;
 const mushafLayout_1 = require("./mushafLayout");
 exports.surahs = (0, mushafLayout_1.getMushafSurahs)();
 const juzStarts = (0, mushafLayout_1.getMushafJuzStarts)();
@@ -72,6 +72,7 @@ const rangeToInterval = (range) => ({
     start: getGlobalAyahNumber(range.startSurahNumber, range.startAyah),
     end: getGlobalAyahNumber(range.endSurahNumber, range.endAyah),
 });
+const isRangeBeforeOrEqual = (firstRange, secondRange) => rangeToInterval(firstRange).start <= rangeToInterval(secondRange).start;
 const normalizeCoverageRange = (range) => {
     if (!range) {
         return null;
@@ -154,6 +155,139 @@ const getJuzProgressPercent = (surahNumber, ayah) => {
     return Math.min(100, Math.max(0, Math.round((completedAyahs / totalAyahs) * 100)));
 };
 exports.getJuzProgressPercent = getJuzProgressPercent;
+const getJuzLayoutByJuzNumber = (juzNumber) => {
+    const juzStart = juzStarts.find((start) => start.juz === Number(juzNumber));
+    if (!juzStart) {
+        return null;
+    }
+    return (0, mushafLayout_1.getJuzLayoutForReference)(juzStart.surah, juzStart.ayah);
+};
+const addRangeLinesToJuzCoverage = (range, juzLayout, coveredLines) => {
+    for (let surahNumber = range.startSurahNumber; surahNumber <= range.endSurahNumber; surahNumber += 1) {
+        const surah = getSurahByNumber(surahNumber);
+        if (!surah) {
+            continue;
+        }
+        const firstAyah = surahNumber === range.startSurahNumber ? range.startAyah : 1;
+        const lastAyah = surahNumber === range.endSurahNumber ? range.endAyah : surah.ayahs;
+        for (let ayah = firstAyah; ayah <= lastAyah; ayah += 1) {
+            const ayahLayout = (0, mushafLayout_1.getAyahLayout)(surahNumber, ayah);
+            if (!ayahLayout) {
+                continue;
+            }
+            const startLine = Math.max(ayahLayout.startGlobalLine, juzLayout.startGlobalLine);
+            const endLine = Math.min(ayahLayout.endGlobalLine, juzLayout.endGlobalLine);
+            for (let line = startLine; line <= endLine; line += 1) {
+                coveredLines.add(line);
+            }
+        }
+    }
+};
+const getCurrentJuzCoveredLineCount = (entries, existingMemorizedJuzList, currentJuz, currentSabaqRange, existingMemorizedSurahList = [], existingMemorizedAyahRanges = []) => {
+    const juzLayout = getJuzLayoutByJuzNumber(currentJuz);
+    if (!juzLayout) {
+        return { coveredLines: 0, totalLines: 0 };
+    }
+    if ((existingMemorizedJuzList || []).map(Number).includes(juzLayout.juz)) {
+        return {
+            coveredLines: (0, mushafLayout_1.getAyahLineCountInRange)(juzLayout.startGlobalLine, juzLayout.endGlobalLine),
+            totalLines: (0, mushafLayout_1.getAyahLineCountInRange)(juzLayout.startGlobalLine, juzLayout.endGlobalLine),
+        };
+    }
+    const coveredLines = new Set();
+    const ranges = entries
+        .map((entry) => (0, exports.parseCoverageRange)(entry.sabaq))
+        .filter((range) => Boolean(range));
+    ranges.push(...getMemorizedSurahIntervals(existingMemorizedSurahList).map((interval) => {
+        const startReference = getReferenceFromGlobalAyahNumber(interval.start);
+        const endReference = getReferenceFromGlobalAyahNumber(interval.end);
+        return {
+            startSurahNumber: startReference.surahNumber,
+            startAyah: startReference.ayah,
+            endSurahNumber: endReference.surahNumber,
+            endAyah: endReference.ayah,
+        };
+    }));
+    ranges.push(...existingMemorizedAyahRanges);
+    if (currentSabaqRange) {
+        ranges.push(currentSabaqRange);
+    }
+    ranges.forEach((range) => addRangeLinesToJuzCoverage(range, juzLayout, coveredLines));
+    return {
+        coveredLines: coveredLines.size,
+        totalLines: (0, mushafLayout_1.getAyahLineCountInRange)(juzLayout.startGlobalLine, juzLayout.endGlobalLine),
+    };
+};
+const calculateCurrentJuzProgressPercent = (entries, existingMemorizedJuzList, currentJuz, currentSabaqRange, existingMemorizedSurahList = [], existingMemorizedAyahRanges = []) => {
+    const { coveredLines, totalLines } = getCurrentJuzCoveredLineCount(entries, existingMemorizedJuzList, currentJuz, currentSabaqRange, existingMemorizedSurahList, existingMemorizedAyahRanges);
+    if (totalLines <= 0) {
+        return 0;
+    }
+    return Math.min(100, Math.max(0, Math.round((coveredLines / totalLines) * 100)));
+};
+exports.calculateCurrentJuzProgressPercent = calculateCurrentJuzProgressPercent;
+const calculateCurrentJuzCompletionEstimate = (entries, existingMemorizedJuzList, currentJuz, averageSabaqPages = 0.5, currentSabaqRange, existingMemorizedSurahList = [], existingMemorizedAyahRanges = []) => {
+    const { coveredLines, totalLines } = getCurrentJuzCoveredLineCount(entries, existingMemorizedJuzList, currentJuz, currentSabaqRange, existingMemorizedSurahList, existingMemorizedAyahRanges);
+    if (totalLines <= 0) {
+        return null;
+    }
+    const linesPerLesson = Math.max(1, Number(averageSabaqPages) * (0, mushafLayout_1.getAyahLinesPerMushafPage)());
+    const remainingLines = Math.max(0, totalLines - coveredLines);
+    const lessonsRemaining = remainingLines > 0 ? Math.ceil(remainingLines / linesPerLesson) : 0;
+    const estimatedDate = new Date();
+    estimatedDate.setHours(0, 0, 0, 0);
+    estimatedDate.setDate(estimatedDate.getDate() + Math.max(0, lessonsRemaining - 1));
+    return {
+        remainingLines,
+        lessonsRemaining,
+        estimatedCompletionDate: estimatedDate.toISOString(),
+    };
+};
+exports.calculateCurrentJuzCompletionEstimate = calculateCurrentJuzCompletionEstimate;
+const getJuzCompletionEstimate = (surahNumber, ayah, averageSabaqPages = 0.5) => {
+    if (!surahNumber || !ayah) {
+        return null;
+    }
+    const ayahLayout = (0, mushafLayout_1.getAyahLayout)(surahNumber, ayah);
+    const juzLayout = (0, mushafLayout_1.getJuzLayoutForReference)(surahNumber, ayah);
+    if (!ayahLayout || !juzLayout) {
+        return null;
+    }
+    const linesPerLesson = Math.max(1, Number(averageSabaqPages) * (0, mushafLayout_1.getAyahLinesPerMushafPage)());
+    const remainingLines = ayahLayout.endGlobalLine >= juzLayout.endGlobalLine
+        ? 0
+        : (0, mushafLayout_1.getAyahLineCountInRange)(ayahLayout.endGlobalLine + 1, juzLayout.endGlobalLine);
+    const lessonsRemaining = remainingLines > 0 ? Math.ceil(remainingLines / linesPerLesson) : 0;
+    const estimatedDate = new Date();
+    estimatedDate.setHours(0, 0, 0, 0);
+    estimatedDate.setDate(estimatedDate.getDate() + Math.max(0, lessonsRemaining - 1));
+    return {
+        remainingLines,
+        lessonsRemaining,
+        estimatedCompletionDate: estimatedDate.toISOString(),
+    };
+};
+exports.getJuzCompletionEstimate = getJuzCompletionEstimate;
+const getSurahProgressPercent = (surahNumber, ayah) => {
+    if (!surahNumber || !ayah) {
+        return 0;
+    }
+    const surah = getSurahByNumber(surahNumber);
+    if (!surah) {
+        return 0;
+    }
+    const clampedAyah = Math.min(surah.ayahs, Math.max(1, Number(ayah)));
+    const firstAyahLayout = (0, mushafLayout_1.getAyahLayout)(surah.number, 1);
+    const currentAyahLayout = (0, mushafLayout_1.getAyahLayout)(surah.number, clampedAyah);
+    const lastAyahLayout = (0, mushafLayout_1.getAyahLayout)(surah.number, surah.ayahs);
+    if (firstAyahLayout && currentAyahLayout && lastAyahLayout) {
+        const completedLines = (0, mushafLayout_1.getAyahLineCountInRange)(firstAyahLayout.startGlobalLine, currentAyahLayout.endGlobalLine);
+        const totalLines = (0, mushafLayout_1.getAyahLineCountInRange)(firstAyahLayout.startGlobalLine, lastAyahLayout.endGlobalLine);
+        return Math.min(100, Math.max(0, Math.round((completedLines / totalLines) * 100)));
+    }
+    return Math.min(100, Math.max(0, Math.round((clampedAyah / surah.ayahs) * 100)));
+};
+exports.getSurahProgressPercent = getSurahProgressPercent;
 const parseMemorizedJuzList = (memorizedJuzList) => {
     try {
         const parsedList = JSON.parse(memorizedJuzList);
@@ -164,11 +298,45 @@ const parseMemorizedJuzList = (memorizedJuzList) => {
     }
 };
 exports.parseMemorizedJuzList = parseMemorizedJuzList;
-const calculateCompletedJuz = (entries, existingMemorizedJuzList, currentSabaqRange) => {
+const parseMemorizedSurahList = (memorizedSurahList = "[]") => {
+    try {
+        const parsedList = JSON.parse(memorizedSurahList);
+        return Array.isArray(parsedList) ? parsedList.map(Number).filter(Boolean) : [];
+    }
+    catch {
+        return [];
+    }
+};
+exports.parseMemorizedSurahList = parseMemorizedSurahList;
+const parseMemorizedAyahRanges = (memorizedAyahRanges = "[]") => {
+    try {
+        const parsedList = JSON.parse(memorizedAyahRanges);
+        return Array.isArray(parsedList)
+            ? parsedList
+                .map((range) => (0, exports.normalizeCoverageRange)(range))
+                .filter((range) => Boolean(range))
+            : [];
+    }
+    catch {
+        return [];
+    }
+};
+exports.parseMemorizedAyahRanges = parseMemorizedAyahRanges;
+const getMemorizedSurahIntervals = (memorizedSurahList) => (memorizedSurahList || [])
+    .map(getSurahByNumber)
+    .filter((surah) => Boolean(surah))
+    .map((surah) => ({
+    start: getGlobalAyahNumber(surah.number, 1),
+    end: getGlobalAyahNumber(surah.number, surah.ayahs),
+}));
+const getMemorizedAyahRangeIntervals = (memorizedAyahRanges) => (memorizedAyahRanges || []).map(rangeToInterval);
+const calculateCompletedJuz = (entries, existingMemorizedJuzList, currentSabaqRange, existingMemorizedSurahList = [], existingMemorizedAyahRanges = []) => {
     const intervals = entries.flatMap((entry) => [entry.sabaq]
         .map(exports.parseCoverageRange)
         .filter((range) => Boolean(range))
         .map(rangeToInterval));
+    intervals.push(...getMemorizedSurahIntervals(existingMemorizedSurahList));
+    intervals.push(...getMemorizedAyahRangeIntervals(existingMemorizedAyahRanges));
     if (currentSabaqRange) {
         intervals.push(rangeToInterval(currentSabaqRange));
     }
@@ -179,11 +347,19 @@ const calculateCompletedJuz = (entries, existingMemorizedJuzList, currentSabaqRa
     return [...new Set([...existingMemorizedJuzList, ...completedFromEntries])].sort((a, b) => a - b);
 };
 exports.calculateCompletedJuz = calculateCompletedJuz;
-const calculateCompletedSurahs = (entries, currentSabaqRange) => {
+const calculateCompletedSurahs = (entries, currentSabaqRange, existingMemorizedJuzList = [], existingMemorizedSurahList = [], existingMemorizedAyahRanges = []) => {
     const intervals = entries.flatMap((entry) => [entry.sabaq]
         .map(exports.parseCoverageRange)
         .filter((range) => Boolean(range))
         .map(rangeToInterval));
+    const memorizedJuzSet = new Set((existingMemorizedJuzList || []).map(Number));
+    getJuzIntervals()
+        .filter((interval) => memorizedJuzSet.has(interval.juz))
+        .forEach((interval) => {
+        intervals.push({ start: interval.start, end: interval.end });
+    });
+    intervals.push(...getMemorizedSurahIntervals(existingMemorizedSurahList));
+    intervals.push(...getMemorizedAyahRangeIntervals(existingMemorizedAyahRanges));
     if (currentSabaqRange) {
         intervals.push(rangeToInterval(currentSabaqRange));
     }
@@ -225,6 +401,9 @@ const defaultLessonPreferences = {
     averageRevisionJuz: 0.25,
 };
 const formatCoverageRange = (range) => {
+    if (!range) {
+        return "";
+    }
     const startSurah = getSurahByNumber(range.startSurahNumber);
     const endSurah = getSurahByNumber(range.endSurahNumber);
     if (!startSurah || !endSurah) {
@@ -279,18 +458,61 @@ const createDefaultCoverage = () => ({
     sabaqPara: { startSurahNumber: 1, startAyah: 1, endSurahNumber: 1, endAyah: 7 },
     revision: { startSurahNumber: 1, startAyah: 1, endSurahNumber: 1, endAyah: 7 },
 });
-const createNextCoverageFromLatest = (latestCoverage) => ({
-    ...createDefaultCoverage(),
-    ...(createNextCoverageRange(latestCoverage.sabaq)
-        ? { sabaq: createNextCoverageRange(latestCoverage.sabaq) }
-        : {}),
-    ...(createNextCoverageRange(latestCoverage.sabaqPara)
-        ? { sabaqPara: createNextCoverageRange(latestCoverage.sabaqPara) }
-        : {}),
-    ...(createNextCoverageRange(latestCoverage.manzil)
-        ? { revision: createNextCoverageRange(latestCoverage.manzil) }
-        : {}),
-});
+const createNextPointCoverage = (reference) => {
+    const surah = reference?.currentSurah ? getSurahByNumber(reference.currentSurah) : null;
+    const ayah = Number(reference?.currentAyah);
+    if (!surah || !Number.isInteger(ayah) || ayah < 1 || ayah > surah.ayahs) {
+        return null;
+    }
+    const nextReference = ayah >= surah.ayahs
+        ? getSurahByNumber(surah.number + 1)
+            ? { surahNumber: surah.number + 1, ayah: 1 }
+            : { surahNumber: surah.number, ayah }
+        : { surahNumber: surah.number, ayah: ayah + 1 };
+    return {
+        startSurahNumber: nextReference.surahNumber,
+        startAyah: nextReference.ayah,
+        endSurahNumber: nextReference.surahNumber,
+        endAyah: nextReference.ayah,
+    };
+};
+const createNextCoverageFromLatest = (latestCoverage, onboardingCurrentPoint) => {
+    const defaultCoverage = createDefaultCoverage();
+    const onboardingCoverage = createNextPointCoverage(onboardingCurrentPoint);
+    return {
+        ...defaultCoverage,
+        sabaq: createNextCoverageRange(latestCoverage.sabaq) ||
+            onboardingCoverage ||
+            defaultCoverage.sabaq,
+        sabaqPara: createNextCoverageRange(latestCoverage.sabaqPara),
+        revision: createNextCoverageRange(latestCoverage.manzil),
+    };
+};
+const getFirstFullyMemorizedSurahCoverage = (coverageMap) => {
+    const firstFullyMemorizedSurah = exports.surahs.find((surah) => (coverageMap[surah.number]?.size || 0) >= surah.ayahs);
+    if (!firstFullyMemorizedSurah) {
+        return null;
+    }
+    return {
+        startSurahNumber: firstFullyMemorizedSurah.number,
+        startAyah: 1,
+        endSurahNumber: firstFullyMemorizedSurah.number,
+        endAyah: 1,
+    };
+};
+const createNextRevisionCoverage = (latestRevision, coverageMap) => {
+    const parsedRevision = latestRevision ? (0, exports.parseCoverageRange)(latestRevision) : null;
+    if (!parsedRevision) {
+        return null;
+    }
+    const lastSurah = exports.surahs[exports.surahs.length - 1];
+    const revisionEndedAtQuranEnd = parsedRevision.endSurahNumber >= lastSurah.number &&
+        parsedRevision.endAyah >= lastSurah.ayahs;
+    if (revisionEndedAtQuranEnd) {
+        return getFirstFullyMemorizedSurahCoverage(coverageMap);
+    }
+    return createNextCoverageRange(latestRevision);
+};
 const expandCoverageByAyahCount = (coverage, ayahCount) => {
     const startGlobalAyah = getGlobalAyahNumber(coverage.startSurahNumber, coverage.startAyah);
     const endReference = getReferenceFromGlobalAyahNumber(startGlobalAyah + Math.max(1, Math.round(ayahCount)) - 1);
@@ -304,7 +526,7 @@ const expandCoverageByPages = (coverage, pages) => {
     const startLayout = (0, mushafLayout_1.getAyahLayout)(coverage.startSurahNumber, coverage.startAyah);
     if (startLayout) {
         const lineCount = Math.max(1, Number(pages) * (0, mushafLayout_1.getLinesPerMushafPage)());
-        const endReference = (0, mushafLayout_1.getReferenceEndingAfterAyahLineCount)({
+        const endReference = (0, mushafLayout_1.getReferenceEndingAfterLineCount)({
             surahNumber: coverage.startSurahNumber,
             ayah: coverage.startAyah,
         }, lineCount);
@@ -323,9 +545,9 @@ const expandCoverageByJuz = (coverage, juzAmount) => {
     const startLayout = (0, mushafLayout_1.getAyahLayout)(coverage.startSurahNumber, coverage.startAyah);
     const juzLayout = (0, mushafLayout_1.getJuzLayoutForReference)(coverage.startSurahNumber, coverage.startAyah);
     if (startLayout && juzLayout) {
-        const juzLineCount = (0, mushafLayout_1.getLinesPerMushafPage)() * 20;
+        const juzLineCount = juzLayout.endGlobalLine - juzLayout.startGlobalLine + 1;
         const lineCount = Math.max(1, Number(juzAmount) * juzLineCount);
-        const endReference = (0, mushafLayout_1.getReferenceEndingAfterAyahLineCount)({
+        const endReference = (0, mushafLayout_1.getReferenceEndingAfterLineCount)({
             surahNumber: coverage.startSurahNumber,
             ayah: coverage.startAyah,
         }, lineCount);
@@ -340,7 +562,58 @@ const expandCoverageByJuz = (coverage, juzAmount) => {
     const ayahsPerJuz = juzInterval ? juzInterval.end - juzInterval.start + 1 : 200;
     return expandCoverageByAyahCount(coverage, Number(juzAmount) * ayahsPerJuz);
 };
-const buildSabaqCoverageMap = (sabaqEntries, memorizedJuz) => {
+const getCoverageRangeLineCount = (range) => {
+    const startLayout = (0, mushafLayout_1.getAyahLayout)(range.startSurahNumber, range.startAyah);
+    const endLayout = (0, mushafLayout_1.getAyahLayout)(range.endSurahNumber, range.endAyah);
+    if (startLayout && endLayout) {
+        return endLayout.endGlobalLine - startLayout.startGlobalLine + 1;
+    }
+    const interval = rangeToInterval(range);
+    return Math.max(1, interval.end - interval.start + 1);
+};
+const createSabaqParaCoverageFromSabaqHistory = (sabaqEntries, pages) => {
+    const parsedRanges = sabaqEntries
+        .map((entry) => (0, exports.parseCoverageRange)(entry.sabaq))
+        .filter((range) => Boolean(range));
+    if (parsedRanges.length === 0) {
+        return null;
+    }
+    const reviewRanges = parsedRanges.slice(1);
+    if (reviewRanges.length === 0) {
+        return null;
+    }
+    const targetLineCount = Math.max(1, Number(pages) * (0, mushafLayout_1.getLinesPerMushafPage)());
+    const latestRange = reviewRanges[0];
+    let accumulatedLineCount = 0;
+    let earliestIncludedRange = latestRange;
+    for (const range of reviewRanges) {
+        accumulatedLineCount += getCoverageRangeLineCount(range);
+        earliestIncludedRange = range;
+        if (accumulatedLineCount >= targetLineCount) {
+            break;
+        }
+    }
+    const calculatedStart = (0, mushafLayout_1.getReferenceStartingBeforeLineCount)({
+        surahNumber: latestRange.endSurahNumber,
+        ayah: latestRange.endAyah,
+    }, Math.min(targetLineCount, accumulatedLineCount));
+    const calculatedStartRange = {
+        startSurahNumber: calculatedStart.surahNumber,
+        startAyah: calculatedStart.ayah,
+        endSurahNumber: latestRange.endSurahNumber,
+        endAyah: latestRange.endAyah,
+    };
+    const earliestStartRange = {
+        startSurahNumber: earliestIncludedRange.startSurahNumber,
+        startAyah: earliestIncludedRange.startAyah,
+        endSurahNumber: latestRange.endSurahNumber,
+        endAyah: latestRange.endAyah,
+    };
+    return isRangeBeforeOrEqual(earliestStartRange, calculatedStartRange)
+        ? calculatedStartRange
+        : earliestStartRange;
+};
+const buildSabaqCoverageMap = (sabaqEntries, memorizedJuz, memorizedSurahs = [], memorizedAyahRanges = []) => {
     const coverageMap = exports.surahs.reduce((map, surah) => {
         map[surah.number] = new Set();
         return map;
@@ -352,6 +625,28 @@ const buildSabaqCoverageMap = (sabaqEntries, memorizedJuz) => {
         for (let globalAyah = interval.start; globalAyah <= interval.end; globalAyah += 1) {
             const reference = getReferenceFromGlobalAyahNumber(globalAyah);
             coverageMap[reference.surahNumber].add(reference.ayah);
+        }
+    });
+    (memorizedSurahs || []).forEach((surahNumber) => {
+        const surah = getSurahByNumber(surahNumber);
+        if (!surah) {
+            return;
+        }
+        for (let ayah = 1; ayah <= surah.ayahs; ayah += 1) {
+            coverageMap[surah.number].add(ayah);
+        }
+    });
+    (memorizedAyahRanges || []).forEach((range) => {
+        for (let surahNumber = range.startSurahNumber; surahNumber <= range.endSurahNumber; surahNumber += 1) {
+            const surah = getSurahByNumber(surahNumber);
+            if (!surah) {
+                continue;
+            }
+            const firstAyah = surahNumber === range.startSurahNumber ? range.startAyah : 1;
+            const lastAyah = surahNumber === range.endSurahNumber ? range.endAyah : surah.ayahs;
+            for (let ayah = firstAyah; ayah <= lastAyah; ayah += 1) {
+                coverageMap[surahNumber].add(ayah);
+            }
         }
     });
     sabaqEntries.forEach((entry) => {
@@ -402,20 +697,24 @@ const createNextSabaqCoverage = (coverageMap, preferredCoverage) => {
         endAyah: nextReference.ayah,
     };
 };
-const createIdealLessonCoverage = ({ latestCoverage, sabaqEntries, memorizedJuz, lessonPreferences, }) => {
+const createIdealLessonCoverage = ({ latestCoverage, sabaqEntries, sabaqParaSourceEntries, memorizedJuz, memorizedSurahs, memorizedAyahRanges, lessonPreferences, onboardingCurrentPoint, }) => {
     const preferences = {
         ...defaultLessonPreferences,
         ...lessonPreferences,
     };
-    const nextCoverage = createNextCoverageFromLatest(latestCoverage);
-    const sabaqCoverageMap = buildSabaqCoverageMap(sabaqEntries, memorizedJuz);
+    const nextCoverage = createNextCoverageFromLatest(latestCoverage, onboardingCurrentPoint);
+    const sabaqCoverageMap = buildSabaqCoverageMap(sabaqEntries, memorizedJuz, memorizedSurahs, memorizedAyahRanges);
     const nextSabaqCoverage = createNextSabaqCoverage(sabaqCoverageMap, nextCoverage.sabaq);
+    const nextRevisionCoverage = createNextRevisionCoverage(latestCoverage.manzil, sabaqCoverageMap);
+    const nextSabaqParaCoverage = createSabaqParaCoverageFromSabaqHistory(sabaqParaSourceEntries || [], preferences.averageSabaqParaPages);
     return {
         sabaq: nextSabaqCoverage
             ? expandCoverageByPages(nextSabaqCoverage, preferences.averageSabaqPages)
             : nextCoverage.sabaq,
-        sabaqPara: expandCoverageByPages(nextCoverage.sabaqPara, preferences.averageSabaqParaPages),
-        revision: expandCoverageByJuz(nextCoverage.revision, preferences.averageRevisionJuz),
+        sabaqPara: nextSabaqParaCoverage,
+        revision: nextRevisionCoverage
+            ? expandCoverageByJuz(nextRevisionCoverage, preferences.averageRevisionJuz)
+            : null,
     };
 };
 exports.createIdealLessonCoverage = createIdealLessonCoverage;

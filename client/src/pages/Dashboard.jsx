@@ -87,6 +87,25 @@ const getAchievementBadges = (dashboardData = {}) => {
   const progress = dashboardData.progress || {};
   const achievementStats = dashboardData.achievementStats || {};
   const awardedDates = achievementStats.awardedDates || {};
+  const memorizedJuz = Array.isArray(progress.memorizedJuz)
+    ? progress.memorizedJuz.map(Number).filter(Boolean).sort((a, b) => a - b)
+    : [];
+  const memorizedSurahs = Array.isArray(progress.memorizedSurahs)
+    ? progress.memorizedSurahs.map(Number).filter(Boolean).sort((a, b) => a - b)
+    : [];
+  const firstCompletedJuz = memorizedJuz[0] || null;
+  const sabaqCoverageMap = buildSabaqCoverageMap(
+    dashboardData.sabaqEntries,
+    memorizedJuz,
+    memorizedSurahs,
+    progress.memorizedAyahRanges
+  );
+  const firstCompletedSurah = surahs.find(
+    (surah) => (sabaqCoverageMap[surah.number]?.size || 0) >= surah.ayahs
+  );
+  const firstJuzDetail =
+    awardedDates.firstJuz && firstCompletedJuz ? `Juz ${firstCompletedJuz}` : "";
+  const firstSurahDetail = awardedDates.firstSurah ? firstCompletedSurah?.name || "" : "";
 
   return [
     {
@@ -123,7 +142,9 @@ const getAchievementBadges = (dashboardData = {}) => {
       achieved: (progress.juz || 0) >= 1,
       awardedDate: awardedDates.firstJuz,
       description: "Memorize 1 juz.",
-      achievedDescription: "You memorized 1 juz.",
+      achievedDescription: firstJuzDetail
+        ? `You memorized your first juz (${firstJuzDetail}).`
+        : "You memorized 1 juz.",
     },
     {
       key: "fiveAjzaa",
@@ -150,7 +171,9 @@ const getAchievementBadges = (dashboardData = {}) => {
       achieved: (progress.surahs || 0) >= 1,
       awardedDate: awardedDates.firstSurah,
       description: "Finish memorizing a surah.",
-      achievedDescription: "You memorized your first surah.",
+      achievedDescription: firstSurahDetail
+        ? `You memorized your first surah (${firstSurahDetail}).`
+        : "You memorized your first surah.",
     },
     {
       key: "fiftyRevisions",
@@ -217,6 +240,12 @@ const renderSessionDuration = (seconds) => {
   );
 };
 
+const formatIdealCoverageRange = (coverageRange) => {
+  const formattedRange = formatCoverageRange(coverageRange);
+
+  return formattedRange ? formatRecentCoverage(formattedRange) : "";
+};
+
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [coverage, setCoverage] = useState(createDefaultCoverage);
@@ -242,7 +271,9 @@ export default function Dashboard() {
   const applyDashboardData = (dashboardData) => {
     const sabaqCoverageMap = buildSabaqCoverageMap(
       dashboardData.sabaqEntries,
-      dashboardData.progress?.memorizedJuz
+      dashboardData.progress?.memorizedJuz,
+      dashboardData.progress?.memorizedSurahs,
+      dashboardData.progress?.memorizedAyahRanges
     );
     const preferences = {
       ...defaultLessonPreferences,
@@ -296,7 +327,7 @@ export default function Dashboard() {
       window.clearTimeout(badgeNoticeTimeoutRef.current);
     }
 
-    setBadgeNotice(`New badge unlocked: ${badgeTitle}`);
+    setBadgeNotice(`New Badge Unlocked: ${badgeTitle}`);
     badgeNoticeTimeoutRef.current = window.setTimeout(() => {
       setBadgeNotice("");
       badgeNoticeTimeoutRef.current = null;
@@ -346,30 +377,90 @@ export default function Dashboard() {
     };
   }, []);
 
+  const getCurrentSabaqCoverageMap = () =>
+    buildSabaqCoverageMap(
+      data?.sabaqEntries,
+      data?.progress?.memorizedJuz,
+      data?.progress?.memorizedSurahs,
+      data?.progress?.memorizedAyahRanges
+    );
+
+  const isSurahFullyMemorized = (coverageMap, surah) =>
+    (coverageMap[surah.number]?.size || 0) >= surah.ayahs;
+
+  const getMemorizedAyahsForSurah = (coverageMap, surahNumber) => {
+    const surah = getSurahByNumber(surahNumber);
+    const memorizedAyahs = coverageMap[surah.number] || new Set();
+
+    return Array.from({ length: surah.ayahs }, (_, index) => index + 1).filter((ayah) =>
+      memorizedAyahs.has(ayah)
+    );
+  };
+
+  const getFirstFullyMemorizedSurah = (coverageMap) =>
+    surahs.find((surah) => isSurahFullyMemorized(coverageMap, surah));
+
+  const createDefaultRevisionCoverage = (coverageMap) => {
+    const firstMemorizedSurah = getFirstFullyMemorizedSurah(coverageMap);
+
+    if (!firstMemorizedSurah) {
+      return createDefaultCoverage().revision;
+    }
+
+    return {
+      startSurahNumber: firstMemorizedSurah.number,
+      startAyah: 1,
+      endSurahNumber: firstMemorizedSurah.number,
+      endAyah: firstMemorizedSurah.ayahs,
+    };
+  };
+
+  const isRevisionRangeMemorized = (coverageMap, entry) => {
+    for (
+      let surahNumber = Number(entry.startSurahNumber);
+      surahNumber <= Number(entry.endSurahNumber);
+      surahNumber += 1
+    ) {
+      const surah = getSurahByNumber(surahNumber);
+      const memorizedAyahs = coverageMap[surah.number] || new Set();
+      const firstAyah = surahNumber === Number(entry.startSurahNumber) ? Number(entry.startAyah) : 1;
+      const lastAyah =
+        surahNumber === Number(entry.endSurahNumber) ? Number(entry.endAyah) : surah.ayahs;
+
+      for (let ayah = firstAyah; ayah <= lastAyah; ayah += 1) {
+        if (!memorizedAyahs.has(ayah)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  };
+
   const updateCoverage = (typeKey, field, value) => {
     setCoverage((currentCoverage) => {
-      const currentEntry = currentCoverage[typeKey];
+      const currentEntry = currentCoverage[typeKey] || createDefaultCoverage()[typeKey];
 
       if (field === "startSurahNumber") {
         const selectedSurah = getSurahByNumber(value);
+        const coverageMap = getCurrentSabaqCoverageMap();
         const availableAyahs =
           typeKey === "sabaq"
-            ? getAvailableAyahsForSabaq(
-                buildSabaqCoverageMap(data?.sabaqEntries, data?.progress?.memorizedJuz),
-                selectedSurah.number
-              )
-            : [];
+            ? getAvailableAyahsForSabaq(coverageMap, selectedSurah.number)
+            : typeKey === "revision"
+              ? getMemorizedAyahsForSurah(coverageMap, selectedSurah.number)
+              : [];
         const firstAvailableAyah = availableAyahs[0] || 1;
         const nextEntry = {
           ...currentEntry,
           startSurahNumber: selectedSurah.number,
-          startAyah: typeKey === "sabaq" ? firstAvailableAyah : 1,
+          startAyah: typeKey === "sabaq" || typeKey === "revision" ? firstAvailableAyah : 1,
         };
 
         if (selectedSurah.number > nextEntry.endSurahNumber) {
           nextEntry.endSurahNumber = selectedSurah.number;
           nextEntry.endAyah =
-            typeKey === "sabaq"
+            typeKey === "sabaq" || typeKey === "revision"
               ? availableAyahs[availableAyahs.length - 1] || selectedSurah.ayahs
               : selectedSurah.ayahs;
         }
@@ -382,23 +473,25 @@ export default function Dashboard() {
 
       if (field === "endSurahNumber") {
         const selectedSurah = getSurahByNumber(value);
+        const coverageMap = getCurrentSabaqCoverageMap();
         const availableAyahs =
           typeKey === "sabaq"
-            ? getAvailableAyahsForSabaq(
-                buildSabaqCoverageMap(data?.sabaqEntries, data?.progress?.memorizedJuz),
-                selectedSurah.number
-              )
-            : [];
+            ? getAvailableAyahsForSabaq(coverageMap, selectedSurah.number)
+            : typeKey === "revision"
+              ? getMemorizedAyahsForSurah(coverageMap, selectedSurah.number)
+              : [];
         const lastAvailableAyah = availableAyahs[availableAyahs.length - 1] || selectedSurah.ayahs;
         const nextEntry = {
           ...currentEntry,
           endSurahNumber: selectedSurah.number,
-          endAyah: typeKey === "sabaq" ? lastAvailableAyah : selectedSurah.ayahs,
+          endAyah:
+            typeKey === "sabaq" || typeKey === "revision" ? lastAvailableAyah : selectedSurah.ayahs,
         };
 
         if (selectedSurah.number < nextEntry.startSurahNumber) {
           nextEntry.startSurahNumber = selectedSurah.number;
-          nextEntry.startAyah = typeKey === "sabaq" ? availableAyahs[0] || 1 : 1;
+          nextEntry.startAyah =
+            typeKey === "sabaq" || typeKey === "revision" ? availableAyahs[0] || 1 : 1;
         }
 
         return {
@@ -437,6 +530,16 @@ export default function Dashboard() {
   };
 
   const toggleCoverageSection = (typeKey) => {
+    const coverageMap = getCurrentSabaqCoverageMap();
+
+    setCoverage((currentCoverage) => ({
+      ...currentCoverage,
+      [typeKey]:
+        currentCoverage[typeKey] ||
+        (typeKey === "revision"
+          ? createDefaultRevisionCoverage(coverageMap)
+          : createDefaultCoverage()[typeKey]),
+    }));
     setActiveCoverageKeys((currentKeys) =>
       currentKeys.includes(typeKey)
         ? currentKeys.filter((key) => key !== typeKey)
@@ -467,7 +570,9 @@ export default function Dashboard() {
     if (activeCoverageKeys.includes("sabaq")) {
       const sabaqCoverageMap = buildSabaqCoverageMap(
         data.sabaqEntries,
-        data.progress?.memorizedJuz
+        data.progress?.memorizedJuz,
+        data.progress?.memorizedSurahs,
+        data.progress?.memorizedAyahRanges
       );
 
       if (!isSabaqRangeAvailable(sabaqCoverageMap, coverage.sabaq)) {
@@ -483,6 +588,13 @@ export default function Dashboard() {
     }
 
     if (activeCoverageKeys.includes("revision")) {
+      const sabaqCoverageMap = getCurrentSabaqCoverageMap();
+
+      if (!isRevisionRangeMemorized(sabaqCoverageMap, coverage.revision)) {
+        alert("Choose only ayahs you have already memorized for Revision.");
+        return;
+      }
+
       entryPayload.manzil = formatCoverageRange(coverage.revision);
     }
 
@@ -539,7 +651,9 @@ export default function Dashboard() {
       setCoverage((currentCoverage) => {
         const nextSabaqCoverageMap = buildSabaqCoverageMap(
           nextDashboardData.sabaqEntries,
-          nextDashboardData.progress?.memorizedJuz
+          nextDashboardData.progress?.memorizedJuz,
+          nextDashboardData.progress?.memorizedSurahs,
+          nextDashboardData.progress?.memorizedAyahRanges
         );
         const nextCoverage =
           nextDashboardData.idealCoverage ||
@@ -614,7 +728,9 @@ export default function Dashboard() {
       };
       const nextSabaqCoverageMap = buildSabaqCoverageMap(
         data.sabaqEntries,
-        data.progress?.memorizedJuz
+        data.progress?.memorizedJuz,
+        data.progress?.memorizedSurahs,
+        data.progress?.memorizedAyahRanges
       );
       const nextCoverage =
         response.idealCoverage ||
@@ -626,6 +742,12 @@ export default function Dashboard() {
         ...currentData,
         lessonPreferences: nextPreferences,
         idealCoverage: response.idealCoverage || currentData.idealCoverage,
+        progress: {
+          ...currentData.progress,
+          currentJuzCompletionEstimate:
+            response.currentJuzCompletionEstimate ||
+            currentData.progress?.currentJuzCompletionEstimate,
+        },
         user: {
           ...currentData.user,
           lessonPreferences: nextPreferences,
@@ -663,25 +785,30 @@ export default function Dashboard() {
   const progress = data.progress || {};
   const savedEntries = Array.isArray(data.recentEntries) ? data.recentEntries : [];
   const recentEntries = savedEntries.filter(isVisibleRecentEntry).slice(0, 7);
-  const sabaqCoverageMap = buildSabaqCoverageMap(data.sabaqEntries, progress.memorizedJuz);
+  const sabaqCoverageMap = buildSabaqCoverageMap(
+    data.sabaqEntries,
+    progress.memorizedJuz,
+    progress.memorizedSurahs,
+    progress.memorizedAyahRanges
+  );
   const currentSurah = progress.currentSurah
     ? surahs.find((surah) => surah.number === Number(progress.currentSurah))
     : null;
-  const currentProgressText =
-    currentSurah && progress.currentAyah
-      ? Number(progress.currentAyah) === currentSurah.ayahs
-        ? currentSurah.name
-        : `${currentSurah.name} ${progress.currentAyah}`
-      : "Not set";
+  const currentSurahText = currentSurah ? currentSurah.name : "Not set";
+  const currentJuzCompletionEstimate = progress.currentJuzCompletionEstimate;
+  const currentJuzCompletionText = currentJuzCompletionEstimate?.estimatedCompletionDate
+    ? formatEntryDate(currentJuzCompletionEstimate.estimatedCompletionDate)
+    : "Not set";
   const longestStreakRangeText = data.longestStreakRange
     ? `${formatEntryDate(data.longestStreakRange.startDate)} - ${formatEntryDate(
         data.longestStreakRange.endDate
       )}`
     : "No streak yet";
   const weeklyActivity = Array.isArray(data.weeklyActivity) ? data.weeklyActivity : [];
+  const displayedIdealCoverage = data.idealCoverage || coverage;
   const idealLessonSummary = coverageTypes.map((type) => ({
     ...type,
-    value: formatCoverageRange(coverage[type.key]),
+    value: formatIdealCoverageRange(displayedIdealCoverage?.[type.key]),
   }));
   const weeklyActivityColors = {
     0: "#c94a3d",
@@ -847,11 +974,28 @@ export default function Dashboard() {
                   </strong>
                 </div>
 
-                <div className="progress-overview-divider" style={styles.progressItem}>
-                  <span style={styles.progressLabel}>Current Ayah</span>
-                  <strong className="dashboard-soft-green dashboard-green-text" style={styles.progressTextValue}>
-                    {currentProgressText}
-                  </strong>
+                <div
+                  className="progress-overview-divider"
+                  style={{ ...styles.currentJuzItem, ...styles.progressOverviewDivider }}
+                >
+                  <div style={styles.currentJuzHeader}>
+                    <span style={styles.progressLabel}>Current Surah</span>
+                    <strong className="dashboard-soft-green dashboard-green-text" style={styles.progressTextValue}>
+                      {currentSurahText}
+                    </strong>
+                  </div>
+                  <div style={styles.progressBarTrack}>
+                    <div
+                      className="dashboard-green-bg"
+                      style={{
+                        ...styles.progressBarFill,
+                        width: `${progress.currentSurahProgressPercent || 0}%`,
+                      }}
+                    />
+                  </div>
+                  <p style={styles.progressPercentText}>
+                    {progress.currentSurahProgressPercent || 0}% complete
+                  </p>
                 </div>
 
                 <div style={styles.currentJuzItem}>
@@ -872,6 +1016,9 @@ export default function Dashboard() {
                   </div>
                   <p style={styles.progressPercentText}>
                     {progress.currentJuzProgressPercent || 0}% complete
+                  </p>
+                  <p style={styles.progressSubstatText}>
+                    Est. completion: {currentJuzCompletionText}
                   </p>
                 </div>
               </div>
@@ -988,7 +1135,7 @@ export default function Dashboard() {
               {coverageTypes
                 .filter((type) => activeCoverageKeys.includes(type.key))
                 .map((type) => {
-                const entry = coverage[type.key];
+                const entry = coverage[type.key] || createDefaultCoverage()[type.key];
                 const startSurah = getSurahByNumber(entry.startSurahNumber);
                 const endSurah = getSurahByNumber(entry.endSurahNumber);
                 const startAyahOptions = Array.from(
@@ -1002,6 +1149,10 @@ export default function Dashboard() {
                 const hasSabaqOptions =
                   type.key !== "sabaq" ||
                   surahs.some((surah) => (sabaqCoverageMap[surah.number]?.size || 0) < surah.ayahs);
+                const hasRevisionOptions =
+                  type.key !== "revision" ||
+                  surahs.some((surah) => isSurahFullyMemorized(sabaqCoverageMap, surah));
+                const hasCoverageOptions = hasSabaqOptions && hasRevisionOptions;
 
                 return (
                   <div key={type.key} style={styles.coverageGroup}>
@@ -1013,13 +1164,19 @@ export default function Dashboard() {
                       </p>
                     ) : null}
 
+                    {!hasRevisionOptions ? (
+                      <p className="dashboard-dark-inner" style={styles.emptyCoverageText}>
+                        Save Sabaq first before adding Revision.
+                      </p>
+                    ) : null}
+
                     <div style={styles.rangeGrid}>
                       <label style={styles.label}>
                         Starting Surah
                         <select
                           className="dashboard-select"
                           value={entry.startSurahNumber}
-                          disabled={!hasSabaqOptions}
+                          disabled={!hasCoverageOptions}
                           onChange={(event) =>
                             updateCoverage(type.key, "startSurahNumber", event.target.value)
                           }
@@ -1030,8 +1187,10 @@ export default function Dashboard() {
                               key={surah.number}
                               value={surah.number}
                               disabled={
-                                type.key === "sabaq" &&
-                                (sabaqCoverageMap[surah.number]?.size || 0) >= surah.ayahs
+                                (type.key === "sabaq" &&
+                                  (sabaqCoverageMap[surah.number]?.size || 0) >= surah.ayahs) ||
+                                (type.key === "revision" &&
+                                  !isSurahFullyMemorized(sabaqCoverageMap, surah))
                               }
                             >
                               {surah.number}. {surah.name}
@@ -1045,7 +1204,7 @@ export default function Dashboard() {
                         <select
                           className="dashboard-select"
                           value={entry.startAyah}
-                          disabled={!hasSabaqOptions}
+                          disabled={!hasCoverageOptions}
                           onChange={(event) =>
                             updateCoverage(type.key, "startAyah", event.target.value)
                           }
@@ -1056,8 +1215,10 @@ export default function Dashboard() {
                               key={ayah}
                               value={ayah}
                               disabled={
-                                type.key === "sabaq" &&
-                                sabaqCoverageMap[startSurah.number]?.has(ayah)
+                                (type.key === "sabaq" &&
+                                  sabaqCoverageMap[startSurah.number]?.has(ayah)) ||
+                                (type.key === "revision" &&
+                                  !sabaqCoverageMap[startSurah.number]?.has(ayah))
                               }
                             >
                               {ayah}
@@ -1071,7 +1232,7 @@ export default function Dashboard() {
                         <select
                           className="dashboard-select"
                           value={entry.endSurahNumber}
-                          disabled={!hasSabaqOptions}
+                          disabled={!hasCoverageOptions}
                           onChange={(event) =>
                             updateCoverage(type.key, "endSurahNumber", event.target.value)
                           }
@@ -1082,8 +1243,10 @@ export default function Dashboard() {
                               key={surah.number}
                               value={surah.number}
                               disabled={
-                                type.key === "sabaq" &&
-                                (sabaqCoverageMap[surah.number]?.size || 0) >= surah.ayahs
+                                (type.key === "sabaq" &&
+                                  (sabaqCoverageMap[surah.number]?.size || 0) >= surah.ayahs) ||
+                                (type.key === "revision" &&
+                                  !isSurahFullyMemorized(sabaqCoverageMap, surah))
                               }
                             >
                               {surah.number}. {surah.name}
@@ -1097,7 +1260,7 @@ export default function Dashboard() {
                         <select
                           className="dashboard-select"
                           value={entry.endAyah}
-                          disabled={!hasSabaqOptions}
+                          disabled={!hasCoverageOptions}
                           onChange={(event) =>
                             updateCoverage(type.key, "endAyah", event.target.value)
                           }
@@ -1108,8 +1271,10 @@ export default function Dashboard() {
                               key={ayah}
                               value={ayah}
                               disabled={
-                                type.key === "sabaq" &&
-                                sabaqCoverageMap[endSurah.number]?.has(ayah)
+                                (type.key === "sabaq" &&
+                                  sabaqCoverageMap[endSurah.number]?.has(ayah)) ||
+                                (type.key === "revision" &&
+                                  !sabaqCoverageMap[endSurah.number]?.has(ayah))
                               }
                             >
                               {ayah}
@@ -1137,6 +1302,7 @@ export default function Dashboard() {
               type="button"
               style={{
                 ...styles.button,
+                ...(!canSaveEntry ? styles.disabledSaveButton : {}),
                 opacity: isSaving || !canSaveEntry ? 0.7 : 1,
                 cursor: isSaving || !canSaveEntry ? "not-allowed" : "pointer",
               }}
@@ -1710,6 +1876,9 @@ const styles = {
   currentJuzItem: {
     padding: "13px 0",
   },
+  progressOverviewDivider: {
+    borderBottom: "1px solid #edf2ee",
+  },
   currentJuzHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -1733,6 +1902,13 @@ const styles = {
     fontSize: 12,
     fontWeight: 700,
     marginTop: 7,
+    textAlign: "right",
+  },
+  progressSubstatText: {
+    color: "#64766d",
+    fontSize: 11,
+    fontWeight: 700,
+    marginTop: 4,
     textAlign: "right",
   },
   addButtonRow: {
@@ -1847,6 +2023,12 @@ const styles = {
     fontWeight: 750,
     boxShadow: "0 10px 18px rgba(31, 122, 85, 0.18)",
   },
+  disabledSaveButton: {
+    color: "#6f7d76",
+    background: "#dfe5e1",
+    borderColor: "#c8d1cc",
+    boxShadow: "none",
+  },
   entry: {
     background: "#fbfdfb",
     border: "1px solid #e3ece6",
@@ -1957,8 +2139,8 @@ const styles = {
   },
   badgeNoticeToast: {
     position: "fixed",
-    left: "50%",
-    bottom: 138,
+    right: 24,
+    bottom: 24,
     zIndex: 20,
     minHeight: 42,
     color: "#1f7a55",
@@ -1969,8 +2151,7 @@ const styles = {
     fontSize: 14,
     fontWeight: 800,
     boxShadow: "0 18px 36px rgba(23, 32, 27, 0.14)",
-    transform: "translateX(-50%)",
-    animation: "notice-dissolve-life 7000ms ease-in-out forwards",
+    animation: "corner-notice-dissolve-life 7000ms ease-in-out forwards",
   },
   streakNoticeToast: {
     position: "fixed",

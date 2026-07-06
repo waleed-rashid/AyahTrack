@@ -22,6 +22,10 @@ export const getSurahByNumber = (surahNumber) =>
   surahs.find((surah) => surah.number === Number(surahNumber)) || surahs[0];
 
 export const formatCoverageRange = (entry) => {
+  if (!entry) {
+    return "";
+  }
+
   const startSurah = getSurahByNumber(entry.startSurahNumber);
   const endSurah = getSurahByNumber(entry.endSurahNumber);
 
@@ -164,12 +168,8 @@ export const createNextCoverageFromLatest = (latestCoverage = {}) => ({
   ...(createNextCoverageRange(latestCoverage.sabaq)
     ? { sabaq: createNextCoverageRange(latestCoverage.sabaq) }
     : {}),
-  ...(createNextCoverageRange(latestCoverage.sabaqPara)
-    ? { sabaqPara: createNextCoverageRange(latestCoverage.sabaqPara) }
-    : {}),
-  ...(createNextCoverageRange(latestCoverage.manzil)
-    ? { revision: createNextCoverageRange(latestCoverage.manzil) }
-    : {}),
+  sabaqPara: createNextCoverageRange(latestCoverage.sabaqPara),
+  revision: createNextCoverageRange(latestCoverage.manzil),
 });
 
 const juzStarts = [
@@ -316,12 +316,21 @@ export const createIdealCoverageFromLatest = (
     sabaq: nextSabaqCoverage
       ? expandCoverageByPages(nextSabaqCoverage, preferences.averageSabaqPages)
       : nextCoverage.sabaq,
-    sabaqPara: expandCoverageByPages(nextCoverage.sabaqPara, preferences.averageSabaqParaPages),
-    revision: expandCoverageByJuz(nextCoverage.revision, preferences.averageRevisionJuz),
+    sabaqPara: nextCoverage.sabaqPara
+      ? expandCoverageByPages(nextCoverage.sabaqPara, preferences.averageSabaqParaPages)
+      : null,
+    revision: nextCoverage.revision
+      ? expandCoverageByJuz(nextCoverage.revision, preferences.averageRevisionJuz)
+      : null,
   };
 };
 
-export const buildSabaqCoverageMap = (sabaqEntries = [], memorizedJuz = []) => {
+export const buildSabaqCoverageMap = (
+  sabaqEntries = [],
+  memorizedJuz = [],
+  memorizedSurahs = [],
+  memorizedAyahRanges = []
+) => {
   const coverageMap = surahs.reduce((map, surah) => {
     map[surah.number] = new Set();
     return map;
@@ -336,6 +345,41 @@ export const buildSabaqCoverageMap = (sabaqEntries = [], memorizedJuz = []) => {
         coverageMap[reference.surahNumber].add(reference.ayah);
       }
     });
+
+  (memorizedSurahs || []).forEach((surahNumber) => {
+    const surah = getSurahByNumber(surahNumber);
+
+    if (!surah) {
+      return;
+    }
+
+    for (let ayah = 1; ayah <= surah.ayahs; ayah += 1) {
+      coverageMap[surah.number].add(ayah);
+    }
+  });
+
+  (memorizedAyahRanges || []).forEach((range) => {
+    for (
+      let surahNumber = Number(range.startSurahNumber);
+      surahNumber <= Number(range.endSurahNumber);
+      surahNumber += 1
+    ) {
+      const surah = getSurahByNumber(surahNumber);
+
+      if (!surah) {
+        continue;
+      }
+
+      const firstAyah =
+        surahNumber === Number(range.startSurahNumber) ? Number(range.startAyah) : 1;
+      const lastAyah =
+        surahNumber === Number(range.endSurahNumber) ? Number(range.endAyah) : surah.ayahs;
+
+      for (let ayah = firstAyah; ayah <= lastAyah; ayah += 1) {
+        coverageMap[surahNumber].add(ayah);
+      }
+    }
+  });
 
   sabaqEntries.forEach((entry) => {
     const parsedCoverage = parseCoverageRange(entry.sabaq);
