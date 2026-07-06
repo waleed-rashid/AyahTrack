@@ -85,10 +85,12 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
             sabaqSaved: true,
             sabaqParaSaved: true,
             manzilSaved: true,
+            notes: true,
         },
     });
     const streakStats = (0, streaks_1.calculateStreakStats)(allEntries, today);
     const weeklyActivity = (0, weeklyActivity_1.calculateWeeklyActivity)(allEntries, today, user.createdAt);
+    const weeklyActivityHistory = (0, weeklyActivity_1.calculateWeeklyActivityHistory)(allEntries, today, user.createdAt);
     const onboardingMemorizedJuz = (0, quranProgress_1.parseMemorizedJuzList)(user.onboardingMemorizedJuzList);
     const onboardingMemorizedSurahs = (0, quranProgress_1.parseMemorizedSurahList)(user.onboardingMemorizedSurahList);
     const onboardingMemorizedAyahRanges = (0, quranProgress_1.parseMemorizedAyahRanges)(user.onboardingMemorizedAyahRanges);
@@ -195,6 +197,7 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
         longestStreak: streakStats.longestStreak,
         longestStreakRange: streakStats.longestStreakRange,
         weeklyActivity,
+        weeklyActivityHistory,
         achievementStats,
         sabaqEntries,
         latestCoverage,

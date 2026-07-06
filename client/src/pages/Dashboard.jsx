@@ -257,6 +257,7 @@ export default function Dashboard() {
   const [streakNotice, setStreakNotice] = useState("");
   const [darkMode, setDarkMode] = useState(false);
   const [showBadges, setShowBadges] = useState(false);
+  const [showWeeklyHistory, setShowWeeklyHistory] = useState(false);
   const [showLessonPreferences, setShowLessonPreferences] = useState(false);
   const [lessonPreferences, setLessonPreferences] = useState(defaultLessonPreferences);
   const [lessonPreferenceDraft, setLessonPreferenceDraft] = useState(defaultLessonPreferences);
@@ -622,6 +623,7 @@ export default function Dashboard() {
         longestStreak: savedEntry.longestStreak,
         longestStreakRange: savedEntry.longestStreakRange,
         weeklyActivity: savedEntry.weeklyActivity,
+        weeklyActivityHistory: savedEntry.weeklyActivityHistory || data.weeklyActivityHistory,
         achievementStats: savedEntry.achievementStats,
         progress: savedEntry.progress,
         sabaqEntries: savedEntry.sabaqEntries || data.sabaqEntries,
@@ -817,13 +819,20 @@ export default function Dashboard() {
     3: "#1f7a55",
   };
   const weeklyLegendItems = [
-    { count: 3, label: "3/3" },
-    { count: 2, label: "2/3" },
-    { count: 1, label: "1/3" },
     { count: 0, label: "0/3" },
+    { count: 1, label: "1/3" },
+    { count: 2, label: "2/3" },
+    { count: 3, label: "3/3" },
   ];
   const formatWeeklyDay = (date) =>
     new Date(date).toLocaleDateString("en-US", { weekday: "short" });
+  const formatShortDate = (date) =>
+    new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const formatWeekRange = (week) =>
+    `${formatShortDate(week.weekStart)} - ${formatShortDate(week.weekEnd)}`;
+  const weeklyActivityHistory = Array.isArray(data.weeklyActivityHistory)
+    ? data.weeklyActivityHistory
+    : [];
   const achievementBadges = getAchievementBadges(data);
   /*
   const achievementStats = data.achievementStats || {};
@@ -1042,7 +1051,16 @@ export default function Dashboard() {
             </section>
 
             <section style={{ ...styles.panel, ...styles.weeklyPanel, ...styles.panelIntroTwo }}>
-              <h2 style={styles.smallPanelTitle}>Weekly Activity</h2>
+              <div style={styles.weeklyPanelHeader}>
+                <h2 style={styles.smallPanelTitle}>Weekly Activity</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowWeeklyHistory(true)}
+                  style={styles.weeklyHistoryButton}
+                >
+                  View all
+                </button>
+              </div>
 
               <div style={styles.weeklyGrid}>
                 {weeklyActivity.map((day) => (
@@ -1070,22 +1088,25 @@ export default function Dashboard() {
               </div>
 
               <div style={styles.weeklyLegend}>
-                {weeklyLegendItems.map((item) => (
-                  <span key={item.count} style={styles.legendItem}>
+                <span style={styles.weeklyLegendEndpoint}>0/3</span>
+                <div style={styles.weeklySpectrum} aria-label="Weekly activity legend from 0 of 3 to 3 of 3">
+                  {weeklyLegendItems.map((item) => (
                     <span
+                      key={item.count}
                       className={
                         item.count === 3
                           ? "weekly-legend-swatch dashboard-green-bg"
                           : "weekly-legend-swatch"
                       }
+                      title={item.label}
                       style={{
                         ...styles.legendSwatch,
                         background: weeklyActivityColors[item.count],
                       }}
                     />
-                    {item.label}
-                  </span>
-                ))}
+                  ))}
+                </div>
+                <span style={styles.weeklyLegendEndpoint}>3/3</span>
               </div>
             </section>
           </div>
@@ -1503,6 +1524,114 @@ export default function Dashboard() {
         </div>
       ) : null}
 
+      {showWeeklyHistory ? (
+        <div style={styles.badgeOverlay} onClick={() => setShowWeeklyHistory(false)}>
+          <section
+            className="achievement-badge-modal"
+            style={styles.weeklyHistoryModal}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={styles.badgeHeader}>
+              <div>
+                <p style={styles.badgeEyebrow}>Consistency</p>
+                <h2 style={styles.badgeTitle}>Weekly Activity History</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWeeklyHistory(false)}
+                aria-label="Close weekly activity"
+                style={styles.badgeCloseButton}
+              >
+                X
+              </button>
+            </div>
+
+            <div style={styles.weeklyHistoryList}>
+              {weeklyActivityHistory.length === 0 ? (
+                <p className="dashboard-dark-inner" style={styles.emptyText}>
+                  No activity yet.
+                </p>
+              ) : (
+                weeklyActivityHistory.map((week) => (
+                  <section
+                    className="dashboard-dark-inner"
+                    key={week.weekStart}
+                    style={styles.weeklyHistoryWeek}
+                  >
+                    <div style={styles.weeklyHistoryWeekHeader}>
+                      <strong style={styles.weeklyHistoryWeekTitle}>{formatWeekRange(week)}</strong>
+                    </div>
+                    <div style={styles.weeklyHistoryGrid}>
+                      {week.days.map((day) => (
+                        <div key={day.date} style={styles.weeklyHistoryDay}>
+                          <span style={styles.weeklyHistoryDayLabel}>
+                            {formatEntryDate(day.date)}
+                          </span>
+                          <span
+                            className={
+                              day.isOutsideRange
+                                ? "weekly-activity-box weekly-history-outside-box"
+                                : day.completedCount === 3
+                                  ? "weekly-activity-box dashboard-green-bg"
+                                  : "weekly-activity-box"
+                            }
+                            title={
+                              day.isOutsideRange
+                                ? "Outside tracked dates"
+                                : `${day.completedCount}/3 completed`
+                            }
+                            style={{
+                              ...styles.weeklyHistoryBox,
+                              ...(day.isOutsideRange ? styles.weeklyHistoryOutsideBox : {}),
+                              background: day.isOutsideRange
+                                ? styles.weeklyHistoryOutsideBox.background
+                                : weeklyActivityColors[day.completedCount] ||
+                                  weeklyActivityColors[0],
+                            }}
+                          />
+                          <div style={styles.weeklyHistoryEntryList}>
+                            {day.entries?.length ? (
+                              day.entries.map((entry, index) => (
+                                <div key={`${day.date}-${index}`} style={styles.weeklyHistoryEntry}>
+                                  {entry.sabaqSaved && entry.sabaq?.trim() ? (
+                                    <p style={styles.weeklyHistoryEntryLine}>
+                                      <b>Sabaq:</b> {formatRecentCoverage(entry.sabaq)}
+                                    </p>
+                                  ) : null}
+                                  {entry.sabaqParaSaved && entry.sabaqPara?.trim() ? (
+                                    <p style={styles.weeklyHistoryEntryLine}>
+                                      <b>Sabaq Para:</b> {formatRecentCoverage(entry.sabaqPara)}
+                                    </p>
+                                  ) : null}
+                                  {entry.manzilSaved && entry.manzil?.trim() ? (
+                                    <p style={styles.weeklyHistoryEntryLine}>
+                                      <b>Revision:</b> {formatRecentCoverage(entry.manzil)}
+                                    </p>
+                                  ) : null}
+                                  {entry.notes?.trim() ? (
+                                    <p style={styles.weeklyHistoryEntryLine}>
+                                      <b>Notes:</b> {entry.notes}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ))
+                            ) : (
+                              <p style={styles.weeklyHistoryEmptyDay}>
+                                {day.isOutsideRange ? "Not tracked" : "No entries"}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {showBadges ? (
         <div style={styles.badgeOverlay} onClick={() => setShowBadges(false)}>
           <section
@@ -1785,6 +1914,23 @@ const styles = {
   weeklyPanel: {
     padding: 16,
   },
+  weeklyPanelHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 11,
+  },
+  weeklyHistoryButton: {
+    color: "#1f7a55",
+    background: "#edf7f1",
+    border: "1px solid #d8ecdf",
+    borderRadius: 7,
+    padding: "5px 8px",
+    fontSize: 11,
+    fontWeight: 850,
+    cursor: "pointer",
+  },
   weeklyGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
@@ -1817,10 +1963,23 @@ const styles = {
   },
   weeklyLegend: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, auto)",
+    gridTemplateColumns: "auto auto auto",
+    alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 7,
     marginTop: 13,
+  },
+  weeklyLegendEndpoint: {
+    color: "#64766d",
+    fontSize: 10,
+    fontWeight: 850,
+    lineHeight: 1,
+  },
+  weeklySpectrum: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 10px)",
+    gap: 3,
+    alignItems: "center",
   },
   legendItem: {
     display: "inline-flex",
@@ -1831,8 +1990,8 @@ const styles = {
     fontWeight: 800,
   },
   legendSwatch: {
-    width: 9,
-    height: 9,
+    width: 10,
+    height: 10,
     borderRadius: 3,
     border: "1px solid rgba(23, 32, 27, 0.08)",
   },
@@ -2199,6 +2358,16 @@ const styles = {
     padding: 24,
     boxShadow: "0 28px 70px rgba(13, 21, 17, 0.24)",
   },
+  weeklyHistoryModal: {
+    width: "min(620px, 100%)",
+    maxHeight: "min(760px, 88vh)",
+    overflowY: "auto",
+    background: "rgba(255,255,255,0.97)",
+    border: "1px solid #dce6df",
+    borderRadius: 8,
+    padding: 24,
+    boxShadow: "0 28px 70px rgba(13, 21, 17, 0.24)",
+  },
   badgeHeader: {
     display: "flex",
     alignItems: "start",
@@ -2236,6 +2405,78 @@ const styles = {
     display: "grid",
     gap: 18,
     marginBottom: 18,
+  },
+  weeklyHistoryList: {
+    display: "grid",
+    gap: 12,
+  },
+  weeklyHistoryWeek: {
+    background: "#fbfdfb",
+    border: "1px solid #e3ece6",
+    borderRadius: 8,
+    padding: 13,
+  },
+  weeklyHistoryWeekHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  weeklyHistoryWeekTitle: {
+    color: "#2a3833",
+    fontSize: 13,
+    fontWeight: 850,
+  },
+  weeklyHistoryGrid: {
+    display: "grid",
+    gap: 8,
+  },
+  weeklyHistoryDay: {
+    display: "grid",
+    gridTemplateColumns: "92px 30px minmax(0, 1fr)",
+    alignItems: "start",
+    gap: 10,
+    padding: "8px 0",
+    borderTop: "1px solid #edf2ee",
+  },
+  weeklyHistoryDayLabel: {
+    color: "#64766d",
+    fontSize: 11,
+    fontWeight: 850,
+    lineHeight: "30px",
+  },
+  weeklyHistoryBox: {
+    width: 24,
+    height: 24,
+    border: "1px solid rgba(23, 32, 27, 0.1)",
+    borderRadius: 5,
+  },
+  weeklyHistoryOutsideBox: {
+    background: "#edf2ee",
+    border: "1px solid #d8e3dc",
+  },
+  weeklyHistoryEntryList: {
+    display: "grid",
+    gap: 6,
+    minWidth: 0,
+  },
+  weeklyHistoryEntry: {
+    display: "grid",
+    gap: 3,
+    minWidth: 0,
+  },
+  weeklyHistoryEntryLine: {
+    color: "#2a3833",
+    fontSize: 12,
+    lineHeight: 1.45,
+    overflowWrap: "anywhere",
+  },
+  weeklyHistoryEmptyDay: {
+    color: "#7a8d84",
+    fontSize: 12,
+    lineHeight: 1.45,
+    fontStyle: "italic",
   },
   preferenceSliderRow: {
     display: "grid",

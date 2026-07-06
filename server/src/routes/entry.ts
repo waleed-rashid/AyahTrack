@@ -16,7 +16,7 @@ import {
   parseMemorizedSurahList,
 } from "../quranProgress";
 import { calculateStreakStats } from "../streaks";
-import { calculateWeeklyActivity } from "../weeklyActivity";
+import { calculateWeeklyActivity, calculateWeeklyActivityHistory } from "../weeklyActivity";
 import { calculateAchievementStats } from "../achievements";
 import { attachDeviceSessionSummaries } from "../deviceSessions";
 
@@ -115,10 +115,12 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
       sabaqSaved: true,
       sabaqParaSaved: true,
       manzilSaved: true,
+      notes: true,
     },
   });
   const streakStats = calculateStreakStats(entries, today);
   const weeklyActivity = calculateWeeklyActivity(entries, today, user.createdAt);
+  const weeklyActivityHistory = calculateWeeklyActivityHistory(entries, today, user.createdAt);
   const sabaqRange =
     normalizeCoverageRange(coverage?.sabaq) ||
     (sabaq !== undefined ? parseCoverageRange(entry.sabaq) : null);
@@ -225,6 +227,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
     longestStreak: streakStats.longestStreak,
     longestStreakRange: streakStats.longestStreakRange,
     weeklyActivity,
+    weeklyActivityHistory,
     achievementStats,
     sabaqEntries,
     latestCoverage,

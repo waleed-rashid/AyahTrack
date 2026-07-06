@@ -95,10 +95,12 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
             sabaqSaved: true,
             sabaqParaSaved: true,
             manzilSaved: true,
+            notes: true,
         },
     });
     const streakStats = (0, streaks_1.calculateStreakStats)(entries, today);
     const weeklyActivity = (0, weeklyActivity_1.calculateWeeklyActivity)(entries, today, user.createdAt);
+    const weeklyActivityHistory = (0, weeklyActivity_1.calculateWeeklyActivityHistory)(entries, today, user.createdAt);
     const sabaqRange = (0, quranProgress_1.normalizeCoverageRange)(coverage?.sabaq) ||
         (sabaq !== undefined ? (0, quranProgress_1.parseCoverageRange)(entry.sabaq) : null);
     const currentJuz = sabaqRange && (0, quranProgress_1.getJuzForAyahReference)(sabaqRange.endSurahNumber, sabaqRange.endAyah);
@@ -166,6 +168,7 @@ router.post("/", auth_1.authMiddleware, async (req, res) => {
         longestStreak: streakStats.longestStreak,
         longestStreakRange: streakStats.longestStreakRange,
         weeklyActivity,
+        weeklyActivityHistory,
         achievementStats,
         sabaqEntries,
         latestCoverage,

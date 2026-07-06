@@ -16,7 +16,7 @@ import {
   parseMemorizedSurahList,
 } from "../quranProgress";
 import { calculateStreakStats } from "../streaks";
-import { calculateWeeklyActivity } from "../weeklyActivity";
+import { calculateWeeklyActivity, calculateWeeklyActivityHistory } from "../weeklyActivity";
 import { calculateAchievementStats } from "../achievements";
 import { attachDeviceSessionSummaries } from "../deviceSessions";
 
@@ -113,10 +113,12 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
       sabaqSaved: true,
       sabaqParaSaved: true,
       manzilSaved: true,
+      notes: true,
     },
   });
   const streakStats = calculateStreakStats(allEntries, today);
   const weeklyActivity = calculateWeeklyActivity(allEntries, today, user.createdAt);
+  const weeklyActivityHistory = calculateWeeklyActivityHistory(allEntries, today, user.createdAt);
   const onboardingMemorizedJuz = parseMemorizedJuzList(user.onboardingMemorizedJuzList);
   const onboardingMemorizedSurahs = parseMemorizedSurahList(user.onboardingMemorizedSurahList);
   const onboardingMemorizedAyahRanges = parseMemorizedAyahRanges(
@@ -268,6 +270,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     longestStreak: streakStats.longestStreak,
     longestStreakRange: streakStats.longestStreakRange,
     weeklyActivity,
+    weeklyActivityHistory,
     achievementStats,
     sabaqEntries,
     latestCoverage,

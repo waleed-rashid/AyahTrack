@@ -406,8 +406,14 @@ select option:disabled {
 }
 
 .dashboard-dark .weekly-future-box {
-  background: #ffffff !important;
-  border-color: #000000 !important;
+  background: #18251f !important;
+  border-color: rgba(132, 166, 145, 0.42) !important;
+  box-shadow: none !important;
+}
+
+.dashboard-dark .weekly-history-outside-box {
+  background: #18251f !important;
+  border-color: rgba(132, 166, 145, 0.28) !important;
   box-shadow: none !important;
 }
 
