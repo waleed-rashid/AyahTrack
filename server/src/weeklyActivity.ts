@@ -42,6 +42,8 @@ export const calculateWeeklyActivity = (
 
   const today = new Date(todayValue);
   today.setHours(0, 0, 0, 0);
+  const startDate = new Date(startDateValue || today);
+  startDate.setHours(0, 0, 0, 0);
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - today.getDay());
   return Array.from({ length: 7 }, (_, index) => {
@@ -50,7 +52,9 @@ export const calculateWeeklyActivity = (
 
     const dayKey = toDayKey(date);
     const activity = activityByDay.get(dayKey);
+    const isBeforeSignup = date.getTime() < startDate.getTime();
     const isFuture = date.getTime() > today.getTime();
+    const isOutsideRange = isBeforeSignup || isFuture;
     const completedCount = activity
       ? [activity.sabaq, activity.sabaqPara, activity.manzil].filter(Boolean).length
       : 0;
@@ -58,7 +62,9 @@ export const calculateWeeklyActivity = (
     return {
       date: dayKey,
       completedCount,
+      isBeforeSignup,
       isFuture,
+      isOutsideRange,
     };
   });
 };
@@ -136,32 +142,60 @@ export const calculateWeeklyActivityHistory = (
     const days = Array.from({ length: 7 }, (_, index) => {
       const date = new Date(weekStartCopy);
       date.setDate(weekStartCopy.getDate() + index);
+      return date;
+    })
+      .filter((date) => date.getTime() >= startDate.getTime() && date.getTime() <= today.getTime())
+      .map((date) => {
+        const dayKey = toDayKey(date);
+        const activity = activityByDay.get(dayKey);
+        const completedCount = activity
+          ? [activity.sabaq, activity.sabaqPara, activity.manzil].filter(Boolean).length
+          : 0;
 
-      const dayKey = toDayKey(date);
-      const activity = activityByDay.get(dayKey);
-      const isBeforeSignup = date.getTime() < startDate.getTime();
-      const isFuture = date.getTime() > today.getTime();
-      const isOutsideRange = isBeforeSignup || isFuture;
-      const completedCount = activity
-        ? [activity.sabaq, activity.sabaqPara, activity.manzil].filter(Boolean).length
-        : 0;
+        return {
+          date: dayKey,
+          completedCount,
+          isBeforeSignup: false,
+          isFuture: false,
+          isOutsideRange: false,
+          entries: activity?.entries || [],
+        };
+      });
 
-      return {
-        date: dayKey,
-        completedCount,
-        isBeforeSignup,
-        isFuture,
-        isOutsideRange,
-        entries: activity?.entries || [],
-      };
-    });
-
-    weeks.push({
-      weekStart: toDayKey(weekStartCopy),
-      weekEnd: toDayKey(weekEnd),
-      days,
-    });
+    if (days.length > 0) {
+      weeks.push({
+        weekStart: days[0].date,
+        weekEnd: days[days.length - 1].date,
+        days,
+      });
+    }
   }
 
   return weeks;
+};
+
+export const calculateActivityMonths = (todayValue = new Date(), startDateValue?: Date | null) => {
+  const today = new Date(todayValue);
+  today.setHours(0, 0, 0, 0);
+
+  const startDate = new Date(startDateValue || today);
+  startDate.setHours(0, 0, 0, 0);
+
+  const months = [];
+
+  for (
+    const monthCursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    monthCursor.getTime() <= today.getTime();
+    monthCursor.setMonth(monthCursor.getMonth() + 1)
+  ) {
+    months.push({
+      key: `${monthCursor.getFullYear()}-${String(monthCursor.getMonth() + 1).padStart(2, "0")}`,
+      label: monthCursor.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      }),
+    });
+  }
+
+  return months;
 };

@@ -359,6 +359,49 @@ select option:disabled {
   border-color: rgba(121, 154, 136, 0.28) !important;
 }
 
+.dashboard-dark .weekly-history-button {
+  color: #77d5a6 !important;
+  background: #173327 !important;
+  border-color: #285b45 !important;
+  box-shadow: none !important;
+}
+
+.activity-history-tab-active span {
+  border-bottom-color: #17201b !important;
+}
+
+.dashboard-dark .activity-history-tab-active span {
+  border-bottom-color: #e7f1eb !important;
+}
+
+.dashboard-dark .activity-month-button {
+  color: #d8e8df !important;
+  background: #111b17 !important;
+  border-color: rgba(121, 154, 136, 0.28) !important;
+}
+
+.dashboard-dark .activity-month-button-active {
+  color: #ffffff !important;
+  background: #1f7a55 !important;
+  border-color: #12976e !important;
+}
+
+.dashboard-dark svg text {
+  fill: #e7f1eb !important;
+}
+
+.dashboard-dark svg line {
+  stroke: #e7f1eb !important;
+}
+
+.dashboard-dark .monthly-graph-area-fill {
+  fill: rgba(31, 122, 85, 0.14) !important;
+}
+
+.dashboard-dark .monthly-graph-axis-line {
+  stroke: rgba(231, 241, 235, 0.58) !important;
+}
+
 .dashboard-dark .preference-slider-value {
   color: #77d5a6 !important;
   background: #173327 !important;

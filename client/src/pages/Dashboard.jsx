@@ -258,6 +258,8 @@ export default function Dashboard() {
   const [darkMode, setDarkMode] = useState(false);
   const [showBadges, setShowBadges] = useState(false);
   const [showWeeklyHistory, setShowWeeklyHistory] = useState(false);
+  const [weeklyActivityTab, setWeeklyActivityTab] = useState("weekly");
+  const [selectedActivityMonth, setSelectedActivityMonth] = useState("");
   const [showLessonPreferences, setShowLessonPreferences] = useState(false);
   const [lessonPreferences, setLessonPreferences] = useState(defaultLessonPreferences);
   const [lessonPreferenceDraft, setLessonPreferenceDraft] = useState(defaultLessonPreferences);
@@ -624,6 +626,7 @@ export default function Dashboard() {
         longestStreakRange: savedEntry.longestStreakRange,
         weeklyActivity: savedEntry.weeklyActivity,
         weeklyActivityHistory: savedEntry.weeklyActivityHistory || data.weeklyActivityHistory,
+        activityMonths: savedEntry.activityMonths || data.activityMonths,
         achievementStats: savedEntry.achievementStats,
         progress: savedEntry.progress,
         sabaqEntries: savedEntry.sabaqEntries || data.sabaqEntries,
@@ -828,11 +831,155 @@ export default function Dashboard() {
     new Date(date).toLocaleDateString("en-US", { weekday: "short" });
   const formatShortDate = (date) =>
     new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const formatDayOfMonth = (date) => String(new Date(date).getDate());
+  const getMonthKey = (dateValue) => {
+    const date = new Date(dateValue);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  };
   const formatWeekRange = (week) =>
     `${formatShortDate(week.weekStart)} - ${formatShortDate(week.weekEnd)}`;
-  const weeklyActivityHistory = Array.isArray(data.weeklyActivityHistory)
+  const rawWeeklyActivityHistory = Array.isArray(data.weeklyActivityHistory)
     ? data.weeklyActivityHistory
     : [];
+  const rawMonthlyActivityDays = rawWeeklyActivityHistory.flatMap((week) => week.days || []);
+  const signupDate = new Date(data.user?.createdAt || rawMonthlyActivityDays[0]?.date || new Date());
+  signupDate.setHours(0, 0, 0, 0);
+  const todayForActivity = new Date();
+  todayForActivity.setHours(0, 0, 0, 0);
+  const weeklyActivityDayMap = new Map(
+    rawMonthlyActivityDays.map((day) => {
+      const date = new Date(day.date);
+      date.setHours(0, 0, 0, 0);
+      return [date.toISOString(), day];
+    })
+  );
+  const weeklyActivityHistory = [];
+  const firstHistoryWeekStart = new Date(signupDate);
+  firstHistoryWeekStart.setDate(signupDate.getDate() - signupDate.getDay());
+
+  for (
+    const weekCursor = new Date(firstHistoryWeekStart);
+    weekCursor.getTime() <= todayForActivity.getTime();
+    weekCursor.setDate(weekCursor.getDate() + 7)
+  ) {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(weekCursor);
+      date.setDate(weekCursor.getDate() + index);
+      date.setHours(0, 0, 0, 0);
+      return date;
+    })
+      .filter((date) => date.getTime() >= signupDate.getTime() && date.getTime() <= todayForActivity.getTime())
+      .map((date) => {
+        const dayKey = date.toISOString();
+        return (
+          weeklyActivityDayMap.get(dayKey) || {
+            date: dayKey,
+            completedCount: 0,
+            entries: [],
+          }
+        );
+      });
+
+    if (days.length > 0) {
+      weeklyActivityHistory.push({
+        weekStart: days[0].date,
+        weekEnd: days[days.length - 1].date,
+        days,
+      });
+    }
+  }
+  const monthlyActivityDays = weeklyActivityHistory.flatMap((week) => week.days || []);
+  const inferredActivityMonths = [];
+
+  for (
+    const monthCursor = new Date(signupDate.getFullYear(), signupDate.getMonth(), 1);
+    monthCursor.getTime() <= todayForActivity.getTime();
+    monthCursor.setMonth(monthCursor.getMonth() + 1)
+  ) {
+    inferredActivityMonths.push({
+      key: getMonthKey(monthCursor),
+      label: monthCursor.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+    });
+  }
+  const monthlyActivityMonths = Array.isArray(data.activityMonths) && data.activityMonths.length > 0
+    ? data.activityMonths
+    : inferredActivityMonths;
+
+  const activeActivityMonth =
+    selectedActivityMonth ||
+    monthlyActivityMonths[monthlyActivityMonths.length - 1]?.key ||
+    "";
+  const monthlyActivityByDate = new Map(
+    monthlyActivityDays.map((day) => {
+      const date = new Date(day.date);
+      date.setHours(0, 0, 0, 0);
+      return [date.toISOString(), day];
+    })
+  );
+  const [activeActivityYear, activeActivityMonthNumber] = activeActivityMonth
+    .split("-")
+    .map(Number);
+  const activeMonthStart = activeActivityMonth
+    ? new Date(activeActivityYear, activeActivityMonthNumber - 1, 1)
+    : null;
+  const activeMonthEnd = activeActivityMonth
+    ? new Date(activeActivityYear, activeActivityMonthNumber, 0)
+    : null;
+  const monthlyGraphStart = activeMonthStart;
+  const monthlyGraphEnd = activeMonthEnd;
+  const monthlyGraphDays =
+    monthlyGraphStart && monthlyGraphEnd
+      ? Array.from(
+          {
+            length:
+              Math.max(
+                0,
+                Math.round(
+                  (monthlyGraphEnd.getTime() - monthlyGraphStart.getTime()) /
+                    (24 * 60 * 60 * 1000)
+                )
+              ) + 1,
+          },
+          (_, index) => {
+            const date = new Date(monthlyGraphStart);
+            date.setDate(monthlyGraphStart.getDate() + index);
+            const dayKey = date.toISOString();
+            return (
+              monthlyActivityByDate.get(dayKey) || {
+                date: dayKey,
+                completedCount: 0,
+                entries: [],
+              }
+            );
+          }
+        )
+      : [];
+  const graphPadding = { left: 74, right: 28, top: 26, bottom: 66 };
+  const graphWidth = Math.max(700, monthlyGraphDays.length * 22 + graphPadding.left + graphPadding.right);
+  const graphHeight = 300;
+  const plotWidth = graphWidth - graphPadding.left - graphPadding.right;
+  const plotHeight = graphHeight - graphPadding.top - graphPadding.bottom;
+  const getGraphX = (index) =>
+    graphPadding.left +
+    (monthlyGraphDays.length <= 1 ? plotWidth / 2 : (index / (monthlyGraphDays.length - 1)) * plotWidth);
+  const getGraphY = (count) =>
+    graphPadding.top + plotHeight - (Math.max(0, Math.min(3, count)) / 3) * plotHeight;
+  const monthlyGraphPoints = monthlyGraphDays.map((day, index) => ({
+    ...day,
+    x: getGraphX(index),
+    y: getGraphY(day.completedCount),
+  }));
+  const monthlyPolylinePoints = monthlyGraphPoints
+    .map((point) => `${point.x},${point.y}`)
+    .join(" ");
+  const monthlyAreaPoints =
+    monthlyGraphPoints.length > 1
+      ? [
+          `${monthlyGraphPoints[0].x},${graphPadding.top + plotHeight}`,
+          ...monthlyGraphPoints.map((point) => `${point.x},${point.y}`),
+          `${monthlyGraphPoints[monthlyGraphPoints.length - 1].x},${graphPadding.top + plotHeight}`,
+        ].join(" ")
+      : "";
   const achievementBadges = getAchievementBadges(data);
   /*
   const achievementStats = data.achievementStats || {};
@@ -1054,6 +1201,7 @@ export default function Dashboard() {
               <div style={styles.weeklyPanelHeader}>
                 <h2 style={styles.smallPanelTitle}>Weekly Activity</h2>
                 <button
+                  className="weekly-history-button"
                   type="button"
                   onClick={() => setShowWeeklyHistory(true)}
                   style={styles.weeklyHistoryButton}
@@ -1068,7 +1216,7 @@ export default function Dashboard() {
                     <span style={styles.weeklyDate}>{formatWeeklyDay(day.date)}</span>
                     <span
                       className={
-                        day.isFuture
+                        day.isOutsideRange
                           ? "weekly-activity-box weekly-future-box"
                           : day.completedCount === 3
                           ? "weekly-activity-box dashboard-green-bg"
@@ -1077,8 +1225,8 @@ export default function Dashboard() {
                       title={`${day.completedCount}/3 completed`}
                       style={{
                         ...styles.weeklyBox,
-                        ...(day.isFuture ? styles.futureWeeklyBox : {}),
-                        background: day.isFuture
+                        ...(day.isOutsideRange ? styles.futureWeeklyBox : {}),
+                        background: day.isOutsideRange
                           ? styles.futureWeeklyBox.background
                           : weeklyActivityColors[day.completedCount] || weeklyActivityColors[0],
                       }}
@@ -1546,88 +1694,250 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div style={styles.weeklyHistoryList}>
-              {weeklyActivityHistory.length === 0 ? (
-                <p className="dashboard-dark-inner" style={styles.emptyText}>
-                  No activity yet.
-                </p>
-              ) : (
-                weeklyActivityHistory.map((week) => (
-                  <section
-                    className="dashboard-dark-inner"
-                    key={week.weekStart}
-                    style={styles.weeklyHistoryWeek}
-                  >
-                    <div style={styles.weeklyHistoryWeekHeader}>
-                      <strong style={styles.weeklyHistoryWeekTitle}>{formatWeekRange(week)}</strong>
-                    </div>
-                    <div style={styles.weeklyHistoryGrid}>
-                      {week.days.map((day) => (
-                        <div key={day.date} style={styles.weeklyHistoryDay}>
-                          <span style={styles.weeklyHistoryDayLabel}>
-                            {formatEntryDate(day.date)}
-                          </span>
-                          <span
-                            className={
-                              day.isOutsideRange
-                                ? "weekly-activity-box weekly-history-outside-box"
-                                : day.completedCount === 3
+            <div style={styles.activityTabs}>
+              <button
+                className={
+                  weeklyActivityTab === "weekly"
+                    ? "activity-history-tab activity-history-tab-active"
+                    : "activity-history-tab"
+                }
+                type="button"
+                onClick={() => setWeeklyActivityTab("weekly")}
+                style={{
+                  ...styles.activityTab,
+                  ...(weeklyActivityTab === "weekly" ? styles.activityTabActive : {}),
+                }}
+              >
+                <span style={styles.activityTabText}>Weekly Activity History</span>
+              </button>
+              <button
+                className={
+                  weeklyActivityTab === "monthly"
+                    ? "activity-history-tab activity-history-tab-active"
+                    : "activity-history-tab"
+                }
+                type="button"
+                onClick={() => setWeeklyActivityTab("monthly")}
+                style={{
+                  ...styles.activityTab,
+                  ...(weeklyActivityTab === "monthly" ? styles.activityTabActive : {}),
+                }}
+              >
+                <span style={styles.activityTabText}>Monthly Activity</span>
+              </button>
+            </div>
+
+            {weeklyActivityTab === "weekly" ? (
+              <div style={styles.weeklyHistoryList}>
+                {weeklyActivityHistory.length === 0 ? (
+                  <p className="dashboard-dark-inner" style={styles.emptyText}>
+                    No activity yet.
+                  </p>
+                ) : (
+                  weeklyActivityHistory.map((week) => (
+                    <section
+                      className="dashboard-dark-inner"
+                      key={week.weekStart}
+                      style={styles.weeklyHistoryWeek}
+                    >
+                      <div style={styles.weeklyHistoryWeekHeader}>
+                        <strong style={styles.weeklyHistoryWeekTitle}>{formatWeekRange(week)}</strong>
+                      </div>
+                      <div style={styles.weeklyHistoryGrid}>
+                        {week.days.map((day) => (
+                          <div key={day.date} style={styles.weeklyHistoryDay}>
+                            <span style={styles.weeklyHistoryDayLabel}>
+                              {formatEntryDate(day.date)}
+                            </span>
+                            <span
+                              className={
+                                day.completedCount === 3
                                   ? "weekly-activity-box dashboard-green-bg"
                                   : "weekly-activity-box"
-                            }
-                            title={
-                              day.isOutsideRange
-                                ? "Outside tracked dates"
-                                : `${day.completedCount}/3 completed`
-                            }
-                            style={{
-                              ...styles.weeklyHistoryBox,
-                              ...(day.isOutsideRange ? styles.weeklyHistoryOutsideBox : {}),
-                              background: day.isOutsideRange
-                                ? styles.weeklyHistoryOutsideBox.background
-                                : weeklyActivityColors[day.completedCount] ||
+                              }
+                              title={`${day.completedCount}/3 completed`}
+                              style={{
+                                ...styles.weeklyHistoryBox,
+                                background:
+                                  weeklyActivityColors[day.completedCount] ||
                                   weeklyActivityColors[0],
-                            }}
-                          />
-                          <div style={styles.weeklyHistoryEntryList}>
-                            {day.entries?.length ? (
-                              day.entries.map((entry, index) => (
-                                <div key={`${day.date}-${index}`} style={styles.weeklyHistoryEntry}>
-                                  {entry.sabaqSaved && entry.sabaq?.trim() ? (
-                                    <p style={styles.weeklyHistoryEntryLine}>
-                                      <b>Sabaq:</b> {formatRecentCoverage(entry.sabaq)}
-                                    </p>
-                                  ) : null}
-                                  {entry.sabaqParaSaved && entry.sabaqPara?.trim() ? (
-                                    <p style={styles.weeklyHistoryEntryLine}>
-                                      <b>Sabaq Para:</b> {formatRecentCoverage(entry.sabaqPara)}
-                                    </p>
-                                  ) : null}
-                                  {entry.manzilSaved && entry.manzil?.trim() ? (
-                                    <p style={styles.weeklyHistoryEntryLine}>
-                                      <b>Revision:</b> {formatRecentCoverage(entry.manzil)}
-                                    </p>
-                                  ) : null}
-                                  {entry.notes?.trim() ? (
-                                    <p style={styles.weeklyHistoryEntryLine}>
-                                      <b>Notes:</b> {entry.notes}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              ))
-                            ) : (
-                              <p style={styles.weeklyHistoryEmptyDay}>
-                                {day.isOutsideRange ? "Not tracked" : "No entries"}
-                              </p>
-                            )}
+                              }}
+                            />
+                            <div style={styles.weeklyHistoryEntryList}>
+                              {day.entries?.length ? (
+                                day.entries.map((entry, index) => (
+                                  <div key={`${day.date}-${index}`} style={styles.weeklyHistoryEntry}>
+                                    {entry.sabaqSaved && entry.sabaq?.trim() ? (
+                                      <p style={styles.weeklyHistoryEntryLine}>
+                                        <b>Sabaq:</b> {formatRecentCoverage(entry.sabaq)}
+                                      </p>
+                                    ) : null}
+                                    {entry.sabaqParaSaved && entry.sabaqPara?.trim() ? (
+                                      <p style={styles.weeklyHistoryEntryLine}>
+                                        <b>Sabaq Para:</b> {formatRecentCoverage(entry.sabaqPara)}
+                                      </p>
+                                    ) : null}
+                                    {entry.manzilSaved && entry.manzil?.trim() ? (
+                                      <p style={styles.weeklyHistoryEntryLine}>
+                                        <b>Revision:</b> {formatRecentCoverage(entry.manzil)}
+                                      </p>
+                                    ) : null}
+                                    {entry.notes?.trim() ? (
+                                      <p style={styles.weeklyHistoryEntryLine}>
+                                        <b>Notes:</b> {entry.notes}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                ))
+                              ) : (
+                                <p style={styles.weeklyHistoryEmptyDay}>No entries</p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    </section>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div style={styles.monthlyActivityLayout}>
+                <div className="dashboard-dark-inner" style={styles.monthlyGraphPanel}>
+                  {monthlyGraphDays.length === 0 ? (
+                    <p style={styles.emptyText}>No activity for this month.</p>
+                  ) : (
+                    <div style={styles.monthlyGraphScroller}>
+                      <svg
+                        role="img"
+                        aria-label="Monthly activity graph"
+                        width={graphWidth}
+                        height={graphHeight}
+                        viewBox={`0 0 ${graphWidth} ${graphHeight}`}
+                        style={styles.monthlyGraph}
+                      >
+                        <line
+                          className="monthly-graph-axis-line"
+                          x1={graphPadding.left}
+                          y1={graphPadding.top}
+                          x2={graphPadding.left}
+                          y2={graphPadding.top + plotHeight}
+                          stroke="#7f9289"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                        />
+                        <line
+                          className="monthly-graph-axis-line"
+                          x1={graphPadding.left}
+                          y1={graphPadding.top + plotHeight}
+                          x2={graphPadding.left + plotWidth}
+                          y2={graphPadding.top + plotHeight}
+                          stroke="#7f9289"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                        />
+                        {[1, 2, 3].map((tick) => (
+                          <text
+                            key={tick}
+                            x={graphPadding.left - 16}
+                            y={getGraphY(tick) + 4}
+                            textAnchor="end"
+                            style={styles.monthlyGraphTick}
+                          >
+                            {tick}
+                          </text>
+                        ))}
+                        <text
+                          x={24}
+                          y={graphPadding.top + plotHeight / 2 - 8}
+                          textAnchor="middle"
+                          style={styles.monthlyGraphAxisLabel}
+                        >
+                          # of
+                        </text>
+                        <text
+                          x={24}
+                          y={graphPadding.top + plotHeight / 2 + 14}
+                          textAnchor="middle"
+                          style={styles.monthlyGraphAxisLabel}
+                        >
+                          entries
+                        </text>
+                        {monthlyPolylinePoints ? (
+                          <>
+                            {monthlyAreaPoints ? (
+                              <polygon
+                                className="monthly-graph-area-fill"
+                                points={monthlyAreaPoints}
+                                fill="rgba(31, 122, 85, 0.14)"
+                              />
+                            ) : null}
+                            <polyline
+                              points={monthlyPolylinePoints}
+                              fill="none"
+                              stroke="#24a84f"
+                              strokeWidth="3"
+                              strokeLinejoin="round"
+                              strokeLinecap="round"
+                            />
+                          </>
+                        ) : null}
+                        {monthlyGraphPoints.map((point) => (
+                          <circle
+                            key={point.date}
+                            cx={point.x}
+                            cy={point.y}
+                            r="4.5"
+                            fill="#24a84f"
+                          />
+                        ))}
+                        {monthlyGraphPoints.map((point) => (
+                          <text
+                            key={`${point.date}-label`}
+                            x={point.x}
+                            y={graphPadding.top + plotHeight + 28}
+                            textAnchor="middle"
+                            style={styles.monthlyGraphDateLabel}
+                          >
+                            {formatDayOfMonth(point.date)}
+                          </text>
+                        ))}
+                        <text
+                          x={graphPadding.left + plotWidth / 2}
+                          y={graphHeight - 10}
+                          textAnchor="middle"
+                          style={styles.monthlyGraphXAxisLabel}
+                        >
+                          Day
+                        </text>
+                      </svg>
                     </div>
-                  </section>
-                ))
-              )}
-            </div>
+                  )}
+                </div>
+
+                <div style={styles.monthSelector} aria-label="Choose activity month">
+                  {monthlyActivityMonths.map((month) => (
+                    <button
+                      className={
+                        activeActivityMonth === month.key
+                          ? "activity-month-button activity-month-button-active"
+                          : "activity-month-button"
+                      }
+                      key={month.key}
+                      type="button"
+                      onClick={() => setSelectedActivityMonth(month.key)}
+                      style={{
+                        ...styles.monthSelectorButton,
+                        ...(activeActivityMonth === month.key
+                          ? styles.monthSelectorButtonActive
+                          : {}),
+                      }}
+                    >
+                      {month.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
         </div>
       ) : null}
@@ -2359,7 +2669,7 @@ const styles = {
     boxShadow: "0 28px 70px rgba(13, 21, 17, 0.24)",
   },
   weeklyHistoryModal: {
-    width: "min(620px, 100%)",
+    width: "min(1040px, 100%)",
     maxHeight: "min(760px, 88vh)",
     overflowY: "auto",
     background: "rgba(255,255,255,0.97)",
@@ -2405,6 +2715,30 @@ const styles = {
     display: "grid",
     gap: 18,
     marginBottom: 18,
+  },
+  activityTabs: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+    marginBottom: 18,
+  },
+  activityTab: {
+    color: "#64766d",
+    background: "transparent",
+    border: 0,
+    padding: "8px 6px",
+    fontSize: 17,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  activityTabText: {
+    display: "inline-block",
+    borderBottom: "2px solid transparent",
+    paddingBottom: 5,
+  },
+  activityTabActive: {
+    color: "#17201b",
+    fontWeight: 850,
   },
   weeklyHistoryList: {
     display: "grid",
@@ -2477,6 +2811,66 @@ const styles = {
     fontSize: 12,
     lineHeight: 1.45,
     fontStyle: "italic",
+  },
+  monthlyActivityLayout: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) 150px",
+    gap: 20,
+    alignItems: "start",
+  },
+  monthlyGraphPanel: {
+    minWidth: 0,
+    background: "#fbfdfb",
+    border: "1px solid #e3ece6",
+    borderRadius: 8,
+    padding: 14,
+  },
+  monthlyGraphScroller: {
+    overflowX: "hidden",
+    paddingBottom: 4,
+  },
+  monthlyGraph: {
+    display: "block",
+    width: "100%",
+  },
+  monthlyGraphTick: {
+    fill: "#64766d",
+    fontSize: 13,
+    fontWeight: 650,
+  },
+  monthlyGraphAxisLabel: {
+    fill: "#64766d",
+    fontSize: 13,
+    fontWeight: 650,
+  },
+  monthlyGraphDateLabel: {
+    fill: "#64766d",
+    fontSize: 12,
+    fontWeight: 650,
+  },
+  monthlyGraphXAxisLabel: {
+    fill: "#64766d",
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  monthSelector: {
+    display: "grid",
+    gap: 8,
+    paddingTop: 48,
+  },
+  monthSelectorButton: {
+    color: "#66766f",
+    background: "transparent",
+    border: 0,
+    textAlign: "left",
+    fontSize: 15,
+    fontWeight: 650,
+    cursor: "pointer",
+    padding: "3px 0",
+  },
+  monthSelectorButtonActive: {
+    color: "#17201b",
+    fontWeight: 900,
   },
   preferenceSliderRow: {
     display: "grid",

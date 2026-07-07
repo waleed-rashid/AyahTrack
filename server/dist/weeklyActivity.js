@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.calculateWeeklyActivityHistory = exports.calculateWeeklyActivity = void 0;
+exports.calculateActivityMonths = exports.calculateWeeklyActivityHistory = exports.calculateWeeklyActivity = void 0;
 const toDayKey = (dateValue) => {
     const date = new Date(dateValue);
     date.setHours(0, 0, 0, 0);
@@ -22,6 +22,8 @@ const calculateWeeklyActivity = (entries, todayValue = new Date(), startDateValu
     });
     const today = new Date(todayValue);
     today.setHours(0, 0, 0, 0);
+    const startDate = new Date(startDateValue || today);
+    startDate.setHours(0, 0, 0, 0);
     const weekStart = new Date(today);
     weekStart.setDate(today.getDate() - today.getDay());
     return Array.from({ length: 7 }, (_, index) => {
@@ -29,14 +31,18 @@ const calculateWeeklyActivity = (entries, todayValue = new Date(), startDateValu
         date.setDate(weekStart.getDate() + index);
         const dayKey = toDayKey(date);
         const activity = activityByDay.get(dayKey);
+        const isBeforeSignup = date.getTime() < startDate.getTime();
         const isFuture = date.getTime() > today.getTime();
+        const isOutsideRange = isBeforeSignup || isFuture;
         const completedCount = activity
             ? [activity.sabaq, activity.sabaqPara, activity.manzil].filter(Boolean).length
             : 0;
         return {
             date: dayKey,
             completedCount,
+            isBeforeSignup,
             isFuture,
+            isOutsideRange,
         };
     });
 };
@@ -81,29 +87,50 @@ const calculateWeeklyActivityHistory = (entries, todayValue = new Date(), startD
         const days = Array.from({ length: 7 }, (_, index) => {
             const date = new Date(weekStartCopy);
             date.setDate(weekStartCopy.getDate() + index);
+            return date;
+        })
+            .filter((date) => date.getTime() >= startDate.getTime() && date.getTime() <= today.getTime())
+            .map((date) => {
             const dayKey = toDayKey(date);
             const activity = activityByDay.get(dayKey);
-            const isBeforeSignup = date.getTime() < startDate.getTime();
-            const isFuture = date.getTime() > today.getTime();
-            const isOutsideRange = isBeforeSignup || isFuture;
             const completedCount = activity
                 ? [activity.sabaq, activity.sabaqPara, activity.manzil].filter(Boolean).length
                 : 0;
             return {
                 date: dayKey,
                 completedCount,
-                isBeforeSignup,
-                isFuture,
-                isOutsideRange,
+                isBeforeSignup: false,
+                isFuture: false,
+                isOutsideRange: false,
                 entries: activity?.entries || [],
             };
         });
-        weeks.push({
-            weekStart: toDayKey(weekStartCopy),
-            weekEnd: toDayKey(weekEnd),
-            days,
-        });
+        if (days.length > 0) {
+            weeks.push({
+                weekStart: days[0].date,
+                weekEnd: days[days.length - 1].date,
+                days,
+            });
+        }
     }
     return weeks;
 };
 exports.calculateWeeklyActivityHistory = calculateWeeklyActivityHistory;
+const calculateActivityMonths = (todayValue = new Date(), startDateValue) => {
+    const today = new Date(todayValue);
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(startDateValue || today);
+    startDate.setHours(0, 0, 0, 0);
+    const months = [];
+    for (const monthCursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1); monthCursor.getTime() <= today.getTime(); monthCursor.setMonth(monthCursor.getMonth() + 1)) {
+        months.push({
+            key: `${monthCursor.getFullYear()}-${String(monthCursor.getMonth() + 1).padStart(2, "0")}`,
+            label: monthCursor.toLocaleDateString("en-US", {
+                month: "long",
+                year: "numeric",
+            }),
+        });
+    }
+    return months;
+};
+exports.calculateActivityMonths = calculateActivityMonths;

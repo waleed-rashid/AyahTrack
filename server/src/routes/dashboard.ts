@@ -16,7 +16,11 @@ import {
   parseMemorizedSurahList,
 } from "../quranProgress";
 import { calculateStreakStats } from "../streaks";
-import { calculateWeeklyActivity, calculateWeeklyActivityHistory } from "../weeklyActivity";
+import {
+  calculateActivityMonths,
+  calculateWeeklyActivity,
+  calculateWeeklyActivityHistory,
+} from "../weeklyActivity";
 import { calculateAchievementStats } from "../achievements";
 import { attachDeviceSessionSummaries } from "../deviceSessions";
 
@@ -116,9 +120,14 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
       notes: true,
     },
   });
+  const activityStartDate = allEntries.reduce((earliestDate, entry) => {
+    const entryDate = new Date(entry.date);
+    return entryDate.getTime() < earliestDate.getTime() ? entryDate : earliestDate;
+  }, new Date(user.createdAt));
   const streakStats = calculateStreakStats(allEntries, today);
-  const weeklyActivity = calculateWeeklyActivity(allEntries, today, user.createdAt);
-  const weeklyActivityHistory = calculateWeeklyActivityHistory(allEntries, today, user.createdAt);
+  const weeklyActivity = calculateWeeklyActivity(allEntries, today, activityStartDate);
+  const weeklyActivityHistory = calculateWeeklyActivityHistory(allEntries, today, activityStartDate);
+  const activityMonths = calculateActivityMonths(today, activityStartDate);
   const onboardingMemorizedJuz = parseMemorizedJuzList(user.onboardingMemorizedJuzList);
   const onboardingMemorizedSurahs = parseMemorizedSurahList(user.onboardingMemorizedSurahList);
   const onboardingMemorizedAyahRanges = parseMemorizedAyahRanges(
@@ -271,6 +280,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
     longestStreakRange: streakStats.longestStreakRange,
     weeklyActivity,
     weeklyActivityHistory,
+    activityMonths,
     achievementStats,
     sabaqEntries,
     latestCoverage,

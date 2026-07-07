@@ -88,9 +88,14 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
             notes: true,
         },
     });
+    const activityStartDate = allEntries.reduce((earliestDate, entry) => {
+        const entryDate = new Date(entry.date);
+        return entryDate.getTime() < earliestDate.getTime() ? entryDate : earliestDate;
+    }, new Date(user.createdAt));
     const streakStats = (0, streaks_1.calculateStreakStats)(allEntries, today);
-    const weeklyActivity = (0, weeklyActivity_1.calculateWeeklyActivity)(allEntries, today, user.createdAt);
-    const weeklyActivityHistory = (0, weeklyActivity_1.calculateWeeklyActivityHistory)(allEntries, today, user.createdAt);
+    const weeklyActivity = (0, weeklyActivity_1.calculateWeeklyActivity)(allEntries, today, activityStartDate);
+    const weeklyActivityHistory = (0, weeklyActivity_1.calculateWeeklyActivityHistory)(allEntries, today, activityStartDate);
+    const activityMonths = (0, weeklyActivity_1.calculateActivityMonths)(today, activityStartDate);
     const onboardingMemorizedJuz = (0, quranProgress_1.parseMemorizedJuzList)(user.onboardingMemorizedJuzList);
     const onboardingMemorizedSurahs = (0, quranProgress_1.parseMemorizedSurahList)(user.onboardingMemorizedSurahList);
     const onboardingMemorizedAyahRanges = (0, quranProgress_1.parseMemorizedAyahRanges)(user.onboardingMemorizedAyahRanges);
@@ -198,6 +203,7 @@ router.get("/", auth_1.authMiddleware, async (req, res) => {
         longestStreakRange: streakStats.longestStreakRange,
         weeklyActivity,
         weeklyActivityHistory,
+        activityMonths,
         achievementStats,
         sabaqEntries,
         latestCoverage,
