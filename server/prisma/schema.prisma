@@ -38,6 +38,15 @@ model User {
   deviceSessions DeviceSession[]
 }
 
+model EmailVerification {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
 model DailyEntry {
   id        Int      @id @default(autoincrement())
   userId    Int

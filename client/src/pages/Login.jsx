@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/api";
 import { saveSession } from "../auth/auth";
@@ -188,6 +188,10 @@ export default function Login() {
   const [loginError, setLoginError] = useState("");
   const [signupErrors, setSignupErrors] = useState([]);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [emailVerificationCode, setEmailVerificationCode] = useState("");
+  const [emailVerificationSent, setEmailVerificationSent] = useState(false);
+  const [emailVerificationToken, setEmailVerificationToken] = useState("");
+  const [emailVerificationNotice, setEmailVerificationNotice] = useState("");
   const [signupForm, setSignupForm] = useState({
     name: "",
     email: "",
@@ -206,6 +210,11 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const redirectTo = location.state?.from || "/dashboard";
+
+  useEffect(() => {
+    document.title = "AyahTrack - Sign In";
+  }, []);
+
   const autoMemorizedSurahList = getSurahsFullyInMemorizedJuz(signupForm.memorizedJuzList);
   const effectiveMemorizedSurahList = signupForm.memorizedSurahList;
 
@@ -283,6 +292,14 @@ export default function Login() {
 
   const updateSignupForm = (field, value) => {
     setSignupErrors([]);
+    setEmailVerificationNotice("");
+
+    if (field === "email") {
+      setEmailVerificationCode("");
+      setEmailVerificationSent(false);
+      setEmailVerificationToken("");
+    }
+
     setSignupForm((currentForm) => ({
       ...currentForm,
       [field]: value,
@@ -419,10 +436,38 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      await api.post("/auth/check-email", { email: signupForm.email.trim() });
+      const res = await api.post("/auth/send-verification", { email: signupForm.email.trim() });
+      setEmailVerificationSent(true);
+      setEmailVerificationNotice(
+        res.data.devCode
+          ? `Development code: ${res.data.devCode}`
+          : "Verification code sent. Check your email to continue."
+      );
+    } catch (err) {
+      setSignupErrors([
+        err.response?.data?.message || "Could not send verification code. Please try again.",
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyEmail = async () => {
+    setSignupErrors([]);
+    setEmailVerificationNotice("");
+    setIsLoading(true);
+
+    try {
+      const res = await api.post("/auth/verify-email", {
+        email: signupForm.email.trim(),
+        code: emailVerificationCode,
+      });
+
+      setEmailVerificationToken(res.data.emailVerificationToken);
+      setEmailVerificationNotice("Email verified.");
       setSignupStep(2);
     } catch (err) {
-      setSignupErrors([err.response?.data?.message || "Email is already in use."]);
+      setSignupErrors([err.response?.data?.message || "Could not verify that code."]);
     } finally {
       setIsLoading(false);
     }
@@ -445,6 +490,7 @@ export default function Login() {
         averageSabaqPages: Number(signupForm.averageSabaqPages),
         averageSabaqParaPages: Number(signupForm.averageSabaqParaPages),
         averageRevisionJuz: Number(signupForm.averageRevisionJuz),
+        emailVerificationToken,
       });
 
       saveSession(res.data);
@@ -591,6 +637,27 @@ export default function Login() {
                   />
                 </label>
 
+                {emailVerificationSent ? (
+                  <label style={styles.label}>
+                    Email Verification Code
+                    <input
+                      value={emailVerificationCode}
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="Enter the 6-digit code"
+                      onChange={(e) => {
+                        setSignupErrors([]);
+                        setEmailVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                      }}
+                      style={styles.input}
+                    />
+                  </label>
+                ) : null}
+
+                {emailVerificationNotice ? (
+                  <p style={styles.successNotification}>{emailVerificationNotice}</p>
+                ) : null}
+
                 {signupErrors.length > 0 ? (
                   <div style={styles.notification}>
                     {signupErrors.map((error) => (
@@ -601,18 +668,50 @@ export default function Login() {
                   </div>
                 ) : null}
 
-                <button
-                  type="button"
-                  onClick={handleSignupNext}
-                  disabled={isLoading}
-                  style={{
-                    ...styles.button,
-                    opacity: isLoading ? 0.7 : 1,
-                    cursor: isLoading ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {isLoading ? "Checking..." : "Continue"}
-                </button>
+                {emailVerificationSent ? (
+                  <div style={styles.actionRow}>
+                    <button
+                      type="button"
+                      onClick={handleSignupNext}
+                      disabled={isLoading}
+                      style={{
+                        ...styles.secondaryButton,
+                        opacity: isLoading ? 0.7 : 1,
+                        cursor: isLoading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {isLoading ? "Sending..." : "Resend Code"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleVerifyEmail}
+                      disabled={isLoading || emailVerificationCode.length !== 6}
+                      style={{
+                        ...styles.button,
+                        opacity: isLoading || emailVerificationCode.length !== 6 ? 0.7 : 1,
+                        cursor:
+                          isLoading || emailVerificationCode.length !== 6
+                            ? "not-allowed"
+                            : "pointer",
+                      }}
+                    >
+                      {isLoading ? "Verifying..." : "Verify Email"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSignupNext}
+                    disabled={isLoading}
+                    style={{
+                      ...styles.button,
+                      opacity: isLoading ? 0.7 : 1,
+                      cursor: isLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {isLoading ? "Sending..." : "Send Verification Code"}
+                  </button>
+                )}
               </>
             ) : signupStep === 2 ? (
               <>
@@ -996,6 +1095,16 @@ const styles = {
     color: "#9a3d34",
     background: "#fff4f2",
     border: "1px solid #f1c7c1",
+    borderRadius: 8,
+    padding: "11px 13px",
+    fontSize: 13,
+    fontWeight: 750,
+    lineHeight: 1.4,
+  },
+  successNotification: {
+    color: "#1f7a55",
+    background: "#edf7f1",
+    border: "1px solid #d8ecdf",
     borderRadius: 8,
     padding: "11px 13px",
     fontSize: 13,

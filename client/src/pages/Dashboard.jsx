@@ -271,6 +271,13 @@ export default function Dashboard() {
   const badgeNoticeTimeoutRef = useRef(null);
   const streakNoticeTimeoutRef = useRef(null);
 
+  useEffect(() => {
+    const studentName = data?.user?.name?.trim();
+    document.title = studentName
+      ? `AyahTrack - ${studentName}'s Dashboard`
+      : "AyahTrack - Dashboard";
+  }, [data?.user?.name]);
+
   const applyDashboardData = (dashboardData) => {
     const sabaqCoverageMap = buildSabaqCoverageMap(
       dashboardData.sabaqEntries,
